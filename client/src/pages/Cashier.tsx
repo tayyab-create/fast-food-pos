@@ -236,12 +236,21 @@ export function Cashier() {
       <div className="ledger-sheet">
         {placedOrder ? (
           <div className="order-confirm">
-            <div className="order-confirm-badge">✓</div>
-            <h2>Order #{placedOrder.orderNumber} placed</h2>
-            <p className="muted-text">
-              {placedOrder.paymentMethod === 'cash' ? 'Cash' : 'Card'} · ${placedOrder.total.toFixed(2)}
-            </p>
-            <button className="primary" style={{ width: '100%', marginTop: 16 }} onClick={startNewOrder}>
+            <div className="ledger-sheet-header">
+              <h2>Order #{placedOrder.orderNumber}</h2>
+              <span className={`status-pill ${placedOrder.status}`}>{placedOrder.status}</span>
+            </div>
+            <div className="totals-block">
+              <div className="totals-row">
+                <span>Payment</span>
+                <span>{placedOrder.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
+              </div>
+              <div className="total-row">
+                <span>Total</span>
+                <span className="num">${placedOrder.total.toFixed(2)}</span>
+              </div>
+            </div>
+            <button className="primary" style={{ width: '100%', marginTop: 14 }} onClick={startNewOrder}>
               New order
             </button>
           </div>
@@ -283,11 +292,13 @@ export function Cashier() {
                     <span className="name">{line.name}</span>
                     <span className="line-total num">${(line.price * line.qty).toFixed(2)}</span>
                     <button
-                      className="icon"
+                      className={`icon note-btn${line.note ? ' active' : ''}`}
                       aria-label="Add note"
                       onClick={() => setOpenNoteFor(openNoteFor === line.name ? null : line.name)}
                     >
-                      📝
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+                        <path d="M2.5 3.5h11M2.5 7h11M2.5 10.5h7" strokeLinecap="round" />
+                      </svg>
                     </button>
                     <button className="remove-btn" onClick={() => removeLine(line.name)} aria-label="Remove item">×</button>
                   </div>
