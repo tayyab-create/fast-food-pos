@@ -26,8 +26,10 @@ export function Reports() {
 
   if (!report) return <p>Loading…</p>;
 
+  const topItems = report.topItems.slice(0, 8);
+
   return (
-    <div>
+    <div className="reports-page">
       <div className="stats-row">
         <div className="stat">
           <div className="value">{report.orderCount}</div>
@@ -39,45 +41,64 @@ export function Reports() {
         </div>
       </div>
 
-      <LedgerTable
-        columns={[
-          { header: 'Item', render: (i) => i.name },
-          { header: 'Qty Sold', numeric: true, render: (i) => i.qty },
-        ]}
-        rows={report.topItems}
-        rowKey={(i) => i.name}
-        emptyMessage="No sales yet today."
-      />
+      <div className="reports-columns">
+        <div className="reports-col reports-col-narrow">
+          <div className="section-header">Top Items Today</div>
+          <LedgerTable
+            columns={[
+              { header: 'Item', render: (i) => i.name },
+              { header: 'Qty Sold', numeric: true, render: (i) => i.qty },
+            ]}
+            rows={topItems}
+            rowKey={(i) => i.name}
+            emptyMessage="No sales yet today."
+          />
+        </div>
 
-      <div className="list-header">
-        <div className="section-header">Order History</div>
-        <input
-          type="text"
-          placeholder="Search by order #, item, or discount reason…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="reports-col reports-col-wide">
+          <div className="list-header">
+            <div className="section-header">Order History</div>
+            <input
+              type="text"
+              placeholder="Search by order #, item, or discount reason…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <LedgerTable
+            columns={[
+              { header: 'Order #', render: (o) => `#${o.orderNumber}` },
+              { header: 'Time', render: (o) => new Date(o.createdAt).toLocaleString() },
+              {
+                header: 'Items',
+                render: (o) => (
+                  <span className="order-items-cell">
+                    {o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
+                  </span>
+                ),
+              },
+              {
+                header: 'Discount',
+                render: (o) =>
+                  o.discount ? (
+                    <span className="discount-cell">
+                      {o.discount.type === 'percent' ? `${o.discount.value}%` : `$${o.discount.value.toFixed(2)}`}
+                      {o.discount.reason && <span className="muted-text"> — {o.discount.reason}</span>}
+                    </span>
+                  ) : (
+                    <span className="muted-text">—</span>
+                  ),
+              },
+              { header: 'Status', render: (o) => <span className={`status-pill ${o.status}`}>{o.status}</span> },
+              { header: 'Total', numeric: true, render: (o) => `$${o.total.toFixed(2)}` },
+            ]}
+            rows={filtered}
+            rowKey={(o) => o._id}
+            emptyMessage="No orders yet."
+          />
+        </div>
       </div>
-
-      <LedgerTable
-        columns={[
-          { header: 'Order #', render: (o) => `#${o.orderNumber}` },
-          { header: 'Time', render: (o) => new Date(o.createdAt).toLocaleString() },
-          { header: 'Items', render: (o) => o.items.map((i) => `${i.qty}× ${i.name}`).join(', ') },
-          {
-            header: 'Discount',
-            render: (o) =>
-              o.discount
-                ? `${o.discount.type === 'percent' ? `${o.discount.value}%` : `$${o.discount.value.toFixed(2)}`}${o.discount.reason ? ` — ${o.discount.reason}` : ''}`
-                : '—',
-          },
-          { header: 'Status', render: (o) => <span className={`status-pill ${o.status}`}>{o.status}</span> },
-          { header: 'Total', numeric: true, render: (o) => `$${o.total.toFixed(2)}` },
-        ]}
-        rows={filtered}
-        rowKey={(o) => o._id}
-        emptyMessage="No orders yet."
-      />
     </div>
   );
 }

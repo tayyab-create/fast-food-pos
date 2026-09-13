@@ -10,7 +10,7 @@ export default function App() {
   return (
     <>
       <NavBar />
-      <main className={['/', '/menu', '/kitchen'].includes(pathname) ? 'wide' : undefined}>
+      <main className={['/', '/menu', '/kitchen', '/reports'].includes(pathname) ? 'wide' : undefined}>
         <Routes>
           <Route path="/" element={<Cashier />} />
           <Route path="/kitchen" element={<Kitchen />} />
