@@ -189,6 +189,9 @@ table.ledger th {
   background: #f7f8f6;
 }
 table.ledger th.num { text-align: right; white-space: nowrap; }
+table.ledger th.sortable { cursor: pointer; user-select: none; }
+table.ledger th.sortable:hover { color: var(--ink); }
+.sort-arrow { font-size: 9px; }
 table.ledger td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);

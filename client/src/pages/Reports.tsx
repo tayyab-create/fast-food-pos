@@ -46,8 +46,8 @@ export function Reports() {
           <div className="section-header">Top Items Today</div>
           <LedgerTable
             columns={[
-              { header: 'Item', render: (i) => i.name },
-              { header: 'Qty Sold', numeric: true, render: (i) => i.qty },
+              { header: 'Item', render: (i) => i.name, sortValue: (i) => i.name },
+              { header: 'Qty Sold', numeric: true, render: (i) => i.qty, sortValue: (i) => i.qty },
             ]}
             rows={topItems}
             rowKey={(i) => i.name}
@@ -68,8 +68,13 @@ export function Reports() {
 
           <LedgerTable
             columns={[
-              { header: 'Order #', render: (o) => `#${o.orderNumber}` },
-              { header: 'Time', render: (o) => new Date(o.createdAt).toLocaleString() },
+              { header: 'Order #', width: '110px', render: (o) => `#${o.orderNumber}`, sortValue: (o) => o.orderNumber ?? 0 },
+              {
+                header: 'Time',
+                width: '190px',
+                render: (o) => new Date(o.createdAt).toLocaleString(),
+                sortValue: (o) => o.createdAt,
+              },
               {
                 header: 'Items',
                 render: (o) => (
@@ -77,6 +82,7 @@ export function Reports() {
                     {o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
                   </span>
                 ),
+                sortValue: (o) => o.items.length,
               },
               {
                 header: 'Discount',
@@ -89,9 +95,14 @@ export function Reports() {
                   ) : (
                     <span className="muted-text">—</span>
                   ),
+                sortValue: (o) => (o.discount ? (o.discount.type === 'percent' ? o.discount.value : o.discount.value) : -1),
               },
-              { header: 'Status', render: (o) => <span className={`status-pill ${o.status}`}>{o.status}</span> },
-              { header: 'Total', numeric: true, render: (o) => `$${o.total.toFixed(2)}` },
+              {
+                header: 'Status',
+                render: (o) => <span className={`status-pill ${o.status}`}>{o.status}</span>,
+                sortValue: (o) => o.status,
+              },
+              { header: 'Total', numeric: true, render: (o) => `$${o.total.toFixed(2)}`, sortValue: (o) => o.total },
             ]}
             rows={filtered}
             rowKey={(o) => o._id}
