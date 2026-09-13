@@ -7,7 +7,8 @@ MongoDB (Mongoose). Frontend is a React + TypeScript SPA built with Vite.
 
 ## Project layout
 ```
-server.js              Connects Mongo, mounts routers, serves client/dist in production
+server.js              Loads .env, connects Mongo, mounts routers, serves client/dist in production
+.env                    MONGO_URI, PORT — gitignored; copy .env.example to set up locally
 routes/                 Express Routers — HTTP verbs/paths only, no business logic
   menu.js               /api/menu
   orders.js             /api/orders

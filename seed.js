@@ -1,3 +1,5 @@
+process.loadEnvFile?.();
+
 const mongoose = require('mongoose');
 const MenuItem = require('./models/MenuItem');
 
@@ -14,7 +16,7 @@ const items = [
   { name: 'Apple Pie', price: 2.99, category: 'Desserts' },
 ];
 
-mongoose.connect('mongodb://127.0.0.1:27017/fastfood_pos_ledger').then(async () => {
+mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fastfood_pos_ledger').then(async () => {
   await MenuItem.deleteMany({});
   await MenuItem.insertMany(items);
   console.log(`Seeded ${items.length} menu items`);

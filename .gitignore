@@ -4,3 +4,5 @@ client/dist/
 uploads/
 .claude/settings.local.json
 image.png
+.env
+graphify-out/

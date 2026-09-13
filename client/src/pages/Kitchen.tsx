@@ -12,7 +12,7 @@ const NEXT_LABEL: Record<Exclude<OrderStatus, 'completed' | 'voided'>, string> =
   preparing: 'Mark Ready',
   ready: 'Complete',
 };
-const OVERDUE_MINUTES = 45;
+const OVERDUE_MINUTES = Number(import.meta.env.VITE_OVERDUE_MINUTES) || 45;
 
 const COLUMNS: { status: Exclude<OrderStatus, 'completed' | 'voided'>; label: string }[] = [
   { status: 'pending', label: 'Pending' },
