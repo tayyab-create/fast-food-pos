@@ -52,6 +52,7 @@ export function Reports() {
             rows={topItems}
             rowKey={(i) => i.name}
             emptyMessage="No sales yet today."
+            pageSize={5}
           />
         </div>
 
@@ -107,6 +108,7 @@ export function Reports() {
             rows={filtered}
             rowKey={(o) => o._id}
             emptyMessage="No orders yet."
+            pageSize={10}
           />
         </div>
       </div>

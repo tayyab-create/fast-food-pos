@@ -192,6 +192,21 @@ table.ledger th.num { text-align: right; white-space: nowrap; }
 table.ledger th.sortable { cursor: pointer; user-select: none; }
 table.ledger th.sortable:hover { color: var(--ink); }
 .sort-arrow { font-size: 9px; }
+
+.ledger-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-top: none;
+  background: var(--surface);
+  font-size: 12px;
+}
+.ledger-pagination-controls { display: flex; align-items: center; gap: 10px; }
+.ledger-pagination-controls button { padding: 5px 10px; font-size: 12px; }
+.ledger-pagination-page { color: var(--muted); white-space: nowrap; }
 table.ledger td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
@@ -471,10 +486,12 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 6px;
 }
-.list-header .section-header { flex: 1; margin: 0; }
+.list-header .section-header { flex: 1; margin: 0; min-width: 160px; }
+.list-header input[type="text"] { width: 260px; max-width: 100%; flex: 0 1 auto; }
 
 .filter-bar {
   display: flex;

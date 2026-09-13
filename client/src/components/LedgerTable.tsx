@@ -16,10 +16,13 @@ interface LedgerTableProps<T> {
   onRowClick?: (row: T) => void;
   isRowSelected?: (row: T) => boolean;
   emptyMessage?: string;
+  /** Enables pagination at this many rows per page. Omit to show all rows. */
+  pageSize?: number;
 }
 
-export function LedgerTable<T>({ columns, rows, rowKey, onRowClick, isRowSelected, emptyMessage }: LedgerTableProps<T>) {
+export function LedgerTable<T>({ columns, rows, rowKey, onRowClick, isRowSelected, emptyMessage, pageSize }: LedgerTableProps<T>) {
   const [sort, setSort] = useState<{ header: string; dir: 1 | -1 } | null>(null);
+  const [page, setPage] = useState(0);
 
   const sortedRows = useMemo(() => {
     if (!sort) return rows;
@@ -34,14 +37,20 @@ export function LedgerTable<T>({ columns, rows, rowKey, onRowClick, isRowSelecte
     });
   }, [rows, sort, columns]);
 
+  const pageCount = pageSize ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageRows = pageSize ? sortedRows.slice(currentPage * pageSize, currentPage * pageSize + pageSize) : sortedRows;
+
   function toggleSort(col: LedgerColumn<T>) {
     if (!col.sortValue) return;
+    setPage(0);
     setSort((prev) =>
       prev?.header === col.header ? { header: col.header, dir: prev.dir === 1 ? -1 : 1 } : { header: col.header, dir: 1 }
     );
   }
 
   return (
+    <>
     <table className="ledger">
       <thead>
         <tr>
@@ -59,12 +68,12 @@ export function LedgerTable<T>({ columns, rows, rowKey, onRowClick, isRowSelecte
         </tr>
       </thead>
       <tbody>
-        {sortedRows.length === 0 ? (
+        {pageRows.length === 0 ? (
           <tr>
             <td colSpan={columns.length}>{emptyMessage ?? 'Nothing here yet.'}</td>
           </tr>
         ) : (
-          sortedRows.map((row) => (
+          pageRows.map((row) => (
             <tr
               key={rowKey(row)}
               onClick={() => onRowClick?.(row)}
@@ -81,5 +90,29 @@ export function LedgerTable<T>({ columns, rows, rowKey, onRowClick, isRowSelecte
         )}
       </tbody>
     </table>
+    {pageSize && sortedRows.length > pageSize && (
+      <div className="ledger-pagination">
+        <span className="muted-text">
+          {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, sortedRows.length)} of {sortedRows.length}
+        </span>
+        <div className="ledger-pagination-controls">
+          <button type="button" className="ghost" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+            ← Prev
+          </button>
+          <span className="ledger-pagination-page">
+            Page {currentPage + 1} of {pageCount}
+          </span>
+          <button
+            type="button"
+            className="ghost"
+            disabled={currentPage >= pageCount - 1}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
