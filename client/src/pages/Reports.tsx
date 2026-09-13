@@ -2,17 +2,21 @@ import { useEffect, useState } from 'react';
 import { getDailyReport } from '../api/reports';
 import { getOrders } from '../api/orders';
 import { LedgerTable } from '../components/LedgerTable';
+import { OrderDetailModal } from '../components/OrderDetailModal';
 import type { DailyReport, Order } from '../types';
 
 export function Reports() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
+  function load() {
     getDailyReport().then(setReport);
     getOrders().then((o) => setOrders([...o].sort((a, b) => b.orderNumber! - a.orderNumber!)));
-  }, []);
+  }
+
+  useEffect(load, []);
 
   const filtered = orders.filter((o) => {
     const q = search.trim().toLowerCase();
@@ -106,12 +110,17 @@ export function Reports() {
             ]}
             rows={filtered}
             rowKey={(o) => o._id}
+            onRowClick={setSelectedOrder}
             emptyMessage="No orders yet."
             pageSize={10}
             pageSizeOptions={[10, 25, 50]}
           />
         </div>
       </div>
+
+      {selectedOrder && (
+        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onVoided={load} />
+      )}
     </div>
   );
 }

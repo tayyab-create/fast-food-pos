@@ -3,7 +3,7 @@ const Order = require('../models/Order');
 async function daily(req, res) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const orders = await Order.find({ createdAt: { $gte: start } });
+  const orders = await Order.find({ createdAt: { $gte: start }, status: { $ne: 'voided' } });
 
   const revenue = orders.reduce((sum, o) => sum + o.total, 0);
   const itemCounts = {};

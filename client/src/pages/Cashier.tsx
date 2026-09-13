@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMenu } from '../api/menu';
 import { createOrder } from '../api/orders';
+import { OrderDetailModal } from '../components/OrderDetailModal';
 import type { Discount, MenuItem, Order, OrderItem, PaymentMethod } from '../types';
 
 const ALL = 'All';
@@ -131,7 +132,6 @@ export function Cashier() {
   }
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
-  const placedItemCount = placedOrder?.items.reduce((sum, i) => sum + i.qty, 0) ?? 0;
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const discountValueNum = Number(discountValue) || 0;
 
@@ -406,68 +406,7 @@ export function Cashier() {
       </div>
 
       {placedOrder && (
-        <div className="modal-overlay" onClick={startNewOrder}>
-          <div className="modal order-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <svg className="confirm-check" width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <circle cx="20" cy="20" r="18" stroke="var(--forest)" strokeWidth="1.5" />
-              <path d="M12 20.5l5.5 5.5L28 14" stroke="var(--forest)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <h2>Order #{placedOrder.orderNumber} placed</h2>
-            <div className="list-header">
-              <div className="section-header">Items</div>
-              <span className="order-summary">
-                {placedItemCount} item{placedItemCount !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <ul className="order-confirm-items">
-              {placedOrder.items.map((item, i) => (
-                <li key={i}>
-                  <span className="num">{item.qty}×</span>
-                  <span className="name">{item.name}</span>
-                  <span className="num">${(item.price * item.qty).toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-            {placedOrder.note && (
-              <p className="order-confirm-note">
-                <span className="muted-text">Order note: </span>
-                {placedOrder.note}
-              </p>
-            )}
-            <div className="totals-block">
-              <div className="totals-row">
-                <span>Subtotal</span>
-                <span className="num">${placedOrder.subtotal.toFixed(2)}</span>
-              </div>
-              {placedOrder.discount && (
-                <div className="totals-row">
-                  <span>
-                    Discount
-                    {placedOrder.discount.reason && <span className="muted-text"> ({placedOrder.discount.reason})</span>}
-                  </span>
-                  <span className="num">
-                    −$
-                    {(placedOrder.discount.type === 'percent'
-                      ? placedOrder.subtotal * (placedOrder.discount.value / 100)
-                      : placedOrder.discount.value
-                    ).toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="totals-row">
-                <span>Payment</span>
-                <span>{placedOrder.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
-              </div>
-              <div className="total-row">
-                <span>Total</span>
-                <span className="num">${placedOrder.total.toFixed(2)}</span>
-              </div>
-            </div>
-            <button className="primary" style={{ width: '100%', marginTop: 14 }} onClick={startNewOrder}>
-              New order
-            </button>
-          </div>
-        </div>
+        <OrderDetailModal order={placedOrder} onClose={startNewOrder} confirmed closeLabel="New order" />
       )}
     </div>
   );

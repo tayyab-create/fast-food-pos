@@ -2,7 +2,7 @@ const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
 const Counter = require('../models/Counter');
 
-const STATUSES = ['pending', 'preparing', 'ready', 'completed'];
+const STATUSES = ['pending', 'preparing', 'ready', 'completed', 'voided'];
 
 // Prices and combo contents are always re-derived from the menu catalog here —
 // never trust price/qty as sent by the client, or an order's total can be

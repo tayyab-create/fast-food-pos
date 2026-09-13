@@ -22,7 +22,7 @@ export interface OrderItem {
   comboItems?: string[];
 }
 
-export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
+export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'voided';
 
 export interface Discount {
   type: 'percent' | 'flat';

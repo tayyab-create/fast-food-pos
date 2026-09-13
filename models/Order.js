@@ -15,6 +15,6 @@ module.exports = mongoose.model('Order', new mongoose.Schema({
   paymentMethod: { type: String, enum: ['cash', 'card'], required: true },
   urgent: { type: Boolean, default: false },
   note: String,
-  status: { type: String, enum: ['pending', 'preparing', 'ready', 'completed'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'preparing', 'ready', 'completed', 'voided'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },
 }));

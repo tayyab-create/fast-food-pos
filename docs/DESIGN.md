@@ -32,6 +32,7 @@ client/                 Vite + React + TypeScript SPA
       Menu.tsx                Menu CRUD (/menu)
     components/
       LedgerTable.tsx         Shared ruled-row table primitive
+      OrderDetailModal.tsx    Shared order detail popup (Cashier checkout confirmation, Reports order history row click)
       NavBar.tsx
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
@@ -67,7 +68,9 @@ client/                 Vite + React + TypeScript SPA
   paymentMethod: 'cash' | 'card',
   urgent?: boolean,
   note?: string,   // order-wide note, distinct from per-item notes
-  status: 'pending' | 'preparing' | 'ready' | 'completed',
+  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'voided',
+    // voided orders are excluded from the Kitchen board and daily report revenue,
+    // but stay visible in Reports' order history — a record, not a delete
   createdAt: Date,
 }
 ```

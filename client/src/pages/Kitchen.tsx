@@ -2,19 +2,19 @@ import { useEffect, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/orders';
 import type { Order, OrderStatus } from '../types';
 
-const NEXT_STATUS: Record<Exclude<OrderStatus, 'completed'>, OrderStatus> = {
+const NEXT_STATUS: Record<Exclude<OrderStatus, 'completed' | 'voided'>, OrderStatus> = {
   pending: 'preparing',
   preparing: 'ready',
   ready: 'completed',
 };
-const NEXT_LABEL: Record<Exclude<OrderStatus, 'completed'>, string> = {
+const NEXT_LABEL: Record<Exclude<OrderStatus, 'completed' | 'voided'>, string> = {
   pending: 'Start Preparing',
   preparing: 'Mark Ready',
   ready: 'Complete',
 };
 const OVERDUE_MINUTES = 45;
 
-const COLUMNS: { status: Exclude<OrderStatus, 'completed'>; label: string }[] = [
+const COLUMNS: { status: Exclude<OrderStatus, 'completed' | 'voided'>; label: string }[] = [
   { status: 'pending', label: 'Pending' },
   { status: 'preparing', label: 'Preparing' },
   { status: 'ready', label: 'Ready' },
@@ -38,7 +38,7 @@ function formatElapsed(minutes: number): string {
   return `${years}y${remDays ? ` ${remDays}d` : ''} ago`;
 }
 
-type Status = Exclude<OrderStatus, 'completed'>;
+type Status = Exclude<OrderStatus, 'completed' | 'voided'>;
 
 export function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -47,7 +47,7 @@ export function Kitchen() {
 
   async function load() {
     const all = await getOrders();
-    setOrders(all.filter((o) => o.status !== 'completed'));
+    setOrders(all.filter((o) => o.status !== 'completed' && o.status !== 'voided'));
   }
 
   useEffect(() => {
@@ -59,6 +59,12 @@ export function Kitchen() {
   async function advance(order: Order) {
     if (order.status === 'completed') return;
     await updateOrderStatus(order._id, NEXT_STATUS[order.status as Status]);
+    load();
+  }
+
+  async function voidOrder(order: Order) {
+    if (!window.confirm(`Void order #${order.orderNumber}? This can't be undone.`)) return;
+    await updateOrderStatus(order._id, 'voided');
     load();
   }
 
@@ -148,7 +154,10 @@ export function Kitchen() {
                           </li>
                         ))}
                       </ul>
-                      <button className="primary" onClick={() => advance(o)}>{NEXT_LABEL[col.status]}</button>
+                      <div className="ticket-actions">
+                        <button className="primary" onClick={() => advance(o)}>{NEXT_LABEL[col.status]}</button>
+                        <button className="ghost danger" onClick={() => voidOrder(o)}>Void</button>
+                      </div>
                     </div>
                   );
                 })}
