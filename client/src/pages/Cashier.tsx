@@ -28,6 +28,17 @@ function emptyCartState() {
   };
 }
 
+const HELD_ORDERS_KEY = 'pos.heldOrders';
+
+function loadHeldOrders(): HeldOrder[] {
+  try {
+    const raw = localStorage.getItem(HELD_ORDERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function Cashier() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<OrderItem[]>([]);
@@ -41,12 +52,16 @@ export function Cashier() {
   const [urgent, setUrgent] = useState(false);
   const [orderNote, setOrderNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>('cash');
-  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(loadHeldOrders);
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     getMenu().then(setMenu);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(HELD_ORDERS_KEY, JSON.stringify(heldOrders));
+  }, [heldOrders]);
 
   const categories = useMemo(() => [ALL, ...new Set(menu.map((i) => i.category))], [menu]);
 
