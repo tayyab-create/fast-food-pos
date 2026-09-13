@@ -85,4 +85,4 @@ async function removeImage(req, res) {
   res.json(item);
 }
 
-module.exports = { list, create, update, remove, uploadImage, removeImage };
+module.exports = { list, create, update, remove, uploadImage, removeImage, validateFields };

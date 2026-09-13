@@ -45,6 +45,24 @@ function buildItem(name, price, qty, comboItems, note) {
   };
 }
 
+// Pure — validates a discount against a subtotal and returns { error } or
+// { discountAmount, total, reason }. No I/O, so this is unit-testable directly.
+function applyDiscount(discount, subtotal) {
+  if (!discount) return { discountAmount: 0, total: Math.max(0, subtotal) };
+  if (!['percent', 'flat'].includes(discount.type) || !(discount.value > 0)) {
+    return { error: 'Invalid discount' };
+  }
+  if (discount.type === 'percent' && discount.value > 100) {
+    return { error: 'Percent discount cannot exceed 100' };
+  }
+  if (discount.type === 'flat' && discount.value > subtotal) {
+    return { error: 'Flat discount cannot exceed the subtotal' };
+  }
+  const discountAmount = discount.type === 'percent' ? subtotal * (discount.value / 100) : discount.value;
+  const reason = typeof discount.reason === 'string' ? discount.reason.slice(0, 100) : discount.reason;
+  return { discountAmount, total: Math.max(0, subtotal - discountAmount), reason };
+}
+
 const PAYMENT_METHODS = ['cash', 'card'];
 
 async function create(req, res) {
@@ -65,24 +83,9 @@ async function create(req, res) {
   }
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-  if (discount) {
-    if (!['percent', 'flat'].includes(discount.type) || !(discount.value > 0)) {
-      return res.status(400).json({ error: 'Invalid discount' });
-    }
-    if (discount.type === 'percent' && discount.value > 100) {
-      return res.status(400).json({ error: 'Percent discount cannot exceed 100' });
-    }
-    if (discount.type === 'flat' && discount.value > subtotal) {
-      return res.status(400).json({ error: 'Flat discount cannot exceed the subtotal' });
-    }
-  }
-  const discountAmount = !discount ? 0
-    : discount.type === 'percent' ? subtotal * (discount.value / 100)
-    : discount.value;
-  const total = Math.max(0, subtotal - discountAmount);
-  if (discount && typeof discount.reason === 'string') {
-    discount.reason = discount.reason.slice(0, 100);
-  }
+  const { error: discountError, total, reason } = applyDiscount(discount, subtotal);
+  if (discountError) return res.status(400).json({ error: discountError });
+  if (discount) discount.reason = reason;
   const counter = await Counter.findOneAndUpdate(
     { _id: 'orderNumber' },
     { $inc: { seq: 1 } },
@@ -108,4 +111,4 @@ async function updateStatus(req, res) {
   res.json(order);
 }
 
-module.exports = { create, list, updateStatus };
+module.exports = { create, list, updateStatus, resolveItem, applyDiscount };

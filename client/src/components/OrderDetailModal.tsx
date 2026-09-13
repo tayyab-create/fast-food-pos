@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { updateOrderStatus } from '../api/orders';
 import type { Order } from '../types';
 
@@ -27,6 +28,20 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
     onVoided?.();
     onClose();
   }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      // Enter closes too, except when focus is on a button — it already handles its
+      // own Enter via a native click (would otherwise double-fire on Void/Close).
+      if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>

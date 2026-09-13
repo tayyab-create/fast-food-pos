@@ -186,6 +186,26 @@ export function Cashier() {
     setPlacedOrder(null);
   }
 
+  useEffect(() => {
+    // Only fires outside a text field, so Enter while typing a note/search/discount
+    // value does its normal job (confirm the field) instead of placing the order.
+    // The confirmation modal has its own Enter/Escape handling (OrderDetailModal).
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Enter' || placedOrder) return;
+      const target = e.target as HTMLElement;
+      // Buttons already handle their own Enter via the native click; only INPUT/
+      // TEXTAREA need excluding to keep typing safe, and BUTTON to avoid a double-fire
+      // when focus happens to be on the checkout button itself.
+      const handlesOwnEnter = ['INPUT', 'TEXTAREA', 'BUTTON'].includes(target.tagName);
+      if (!handlesOwnEnter && cart.length > 0 && !discountError && paymentMethod) {
+        e.preventDefault();
+        checkout();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [placedOrder, cart, discountError, paymentMethod, discount, urgent, orderNote]);
+
   return (
     <div className="pos-layout">
       <div className="pos-menu">
