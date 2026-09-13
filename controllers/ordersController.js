@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
+const Counter = require('../models/Counter');
 
 const STATUSES = ['pending', 'preparing', 'ready', 'completed'];
 
@@ -77,9 +78,12 @@ async function create(req, res) {
   if (discount && typeof discount.reason === 'string') {
     discount.reason = discount.reason.slice(0, 100);
   }
-  // ponytail: max+1 lookup, not a race-safe counter — fine for a single till, add a counter doc if multi-till lands
-  const last = await Order.findOne().sort({ orderNumber: -1 });
-  const orderNumber = (last?.orderNumber ?? 0) + 1;
+  const counter = await Counter.findOneAndUpdate(
+    { _id: 'orderNumber' },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+  const orderNumber = counter.seq;
   const order = await Order.create({ items, subtotal, discount, total, orderNumber, urgent, note });
   res.status(201).json(order);
 }

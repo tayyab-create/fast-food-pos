@@ -19,6 +19,7 @@ controllers/            Business logic + Mongoose queries, one per resource
 models/                 Mongoose schemas
   MenuItem.js
   Order.js
+  Counter.js             Atomic sequence counters (orderNumber)
 uploads/                Compressed product images, served at /uploads (gitignored, runtime-only)
 seed.js                 Populates sample menu items
 client/                 Vite + React + TypeScript SPA
@@ -27,7 +28,7 @@ client/                 Vite + React + TypeScript SPA
     pages/
       Cashier.tsx             Menu grid + cart + checkout (/)
       Kitchen.tsx             Order queue, polls every 3s (/kitchen)
-      Reports.tsx             Daily stats (/reports)
+      Reports.tsx             Daily stats + full order history, search by order #/item/discount reason (/reports)
       Menu.tsx                Menu CRUD (/menu)
     components/
       LedgerTable.tsx         Shared ruled-row table primitive
@@ -58,6 +59,7 @@ client/                 Vite + React + TypeScript SPA
 {
   _id,
   orderNumber: number,   // sequential, per-order (1, 2, 3, ...) — not the Mongo _id
+                         // assigned atomically from a Counter doc (_id: 'orderNumber'), race-safe across concurrent creates
   items: [{ name: string, price: number, qty: number, note?: string, comboItems?: string[] }],
   subtotal: number,
   discount?: { type: 'percent' | 'flat', value: number, reason?: string },
