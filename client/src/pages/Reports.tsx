@@ -26,7 +26,7 @@ export function Reports() {
 
   if (!report) return <p>Loading…</p>;
 
-  const topItems = report.topItems.slice(0, 8);
+  const topItems = report.topItems.slice(0, 10);
 
   return (
     <div className="reports-page">
@@ -52,7 +52,6 @@ export function Reports() {
             rows={topItems}
             rowKey={(i) => i.name}
             emptyMessage="No sales yet today."
-            pageSize={5}
           />
         </div>
 
@@ -109,6 +108,7 @@ export function Reports() {
             rowKey={(o) => o._id}
             emptyMessage="No orders yet."
             pageSize={10}
+            pageSizeOptions={[10, 25, 50]}
           />
         </div>
       </div>

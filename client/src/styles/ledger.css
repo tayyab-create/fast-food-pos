@@ -197,16 +197,34 @@ table.ledger th.sortable:hover { color: var(--ink); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-top: none;
   background: var(--surface);
   font-size: 12px;
+  color: var(--muted);
 }
-.ledger-pagination-controls { display: flex; align-items: center; gap: 10px; }
-.ledger-pagination-controls button { padding: 5px 10px; font-size: 12px; }
-.ledger-pagination-page { color: var(--muted); white-space: nowrap; }
+.ledger-pagination-size { display: flex; align-items: center; gap: 6px; }
+.ledger-pagination-size select,
+.ledger-pagination-size .ledger-pagination-custom {
+  padding: 3px 6px;
+  font-size: 12px;
+  width: auto;
+  min-width: 64px;
+}
+.ledger-pagination-custom { width: 70px; }
+.ledger-pagination-page { white-space: nowrap; margin-left: auto; }
+.ledger-pagination-controls { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.ledger-pagination-controls button {
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 14px;
+  flex: none;
+}
 table.ledger td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
