@@ -11,6 +11,7 @@ export interface MenuItem {
   variants?: Variant[];
   isCombo?: boolean;
   comboItems?: string[];
+  image?: string;
 }
 
 export interface OrderItem {
@@ -26,6 +27,7 @@ export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
 export interface Discount {
   type: 'percent' | 'flat';
   value: number;
+  reason?: string;
 }
 
 export interface Order {

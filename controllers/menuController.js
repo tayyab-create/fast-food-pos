@@ -1,4 +1,9 @@
+const fs = require('fs/promises');
+const path = require('path');
+const sharp = require('sharp');
 const MenuItem = require('../models/MenuItem');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 
 async function list(req, res) {
   res.json(await MenuItem.find().sort({ category: 1, name: 1 }));
@@ -28,4 +33,33 @@ async function remove(req, res) {
   res.status(204).end();
 }
 
-module.exports = { list, create, update, remove };
+async function uploadImage(req, res) {
+  const item = await MenuItem.findById(req.params.id);
+  if (!item) return res.status(404).json({ error: 'Menu item not found' });
+
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+  const filename = `${item._id}.jpg`;
+  await sharp(req.file.buffer)
+    .resize(640, 640, { fit: 'cover' })
+    .jpeg({ quality: 80 })
+    .toFile(path.join(UPLOAD_DIR, filename));
+
+  item.image = `/uploads/${filename}?v=${Date.now()}`;
+  await item.save();
+  res.json(item);
+}
+
+async function removeImage(req, res) {
+  const item = await MenuItem.findById(req.params.id);
+  if (!item) return res.status(404).json({ error: 'Menu item not found' });
+
+  if (item.image) {
+    const filename = `${item._id}.jpg`;
+    await fs.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
+  }
+  item.image = undefined;
+  await item.save();
+  res.json(item);
+}
+
+module.exports = { list, create, update, remove, uploadImage, removeImage };

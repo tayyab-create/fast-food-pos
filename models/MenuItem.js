@@ -7,4 +7,5 @@ module.exports = mongoose.model('MenuItem', new mongoose.Schema({
   variants: [{ name: String, price: Number }],
   isCombo: { type: Boolean, default: false },
   comboItems: [String],
+  image: String,
 }));

@@ -13,12 +13,13 @@ routes/                 Express Routers — HTTP verbs/paths only, no business l
   orders.js             /api/orders
   reports.js            /api/reports
 controllers/            Business logic + Mongoose queries, one per resource
-  menuController.js
+  menuController.js      Also handles image upload/removal (sharp resize + compress)
   ordersController.js
   reportsController.js
 models/                 Mongoose schemas
   MenuItem.js
   Order.js
+uploads/                Compressed product images, served at /uploads (gitignored, runtime-only)
 seed.js                 Populates sample menu items
 client/                 Vite + React + TypeScript SPA
   src/
@@ -48,6 +49,7 @@ client/                 Vite + React + TypeScript SPA
   variants?: [{ name: string, price: number }],  // e.g. pizza sizes; price becomes per-variant
   isCombo?: boolean,
   comboItems?: string[],                           // e.g. ["Cheeseburger", "Fries", "Pizza (Medium)"]
+  image?: string,                                   // "/uploads/<itemId>.jpg?v=<timestamp>", undefined if none
 }
 ```
 
@@ -58,7 +60,7 @@ client/                 Vite + React + TypeScript SPA
   orderNumber: number,   // sequential, per-order (1, 2, 3, ...) — not the Mongo _id
   items: [{ name: string, price: number, qty: number, note?: string, comboItems?: string[] }],
   subtotal: number,
-  discount?: { type: 'percent' | 'flat', value: number },
+  discount?: { type: 'percent' | 'flat', value: number, reason?: string },
   total: number,   // subtotal minus discount, clamped to >= 0
   urgent?: boolean,
   note?: string,   // order-wide note, distinct from per-item notes
@@ -75,6 +77,8 @@ client/                 Vite + React + TypeScript SPA
 | POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems? } | MenuItem (201) |
 | PUT    | /api/menu/:id     | { name?, price?, category?, variants?, isCombo?, comboItems? } | MenuItem |
 | DELETE | /api/menu/:id     | —                                       | 204                    |
+| POST   | /api/menu/:id/image | multipart, field `image` (jpeg/png/webp, ≤5MB) | MenuItem |
+| DELETE | /api/menu/:id/image | —                                     | MenuItem               |
 | GET    | /api/orders       | ?status= (optional filter)              | Order[]                |
 | POST   | /api/orders       | { items: OrderItem[], discount?, urgent?, note? } | Order (201)      |
 | PATCH  | /api/orders/:id   | { status }                              | Order                  |
@@ -90,11 +94,12 @@ stays about architecture and data shapes.
 - **Cashier (`/`)**: a search bar, category tabs (including an "All" tab), and
   a grid of tappable item tiles — items with `variants` expand an inline size
   picker on tap; `isCombo` items show their `comboItems` as a subtext line.
-  The order ledger sheet on the right lists cart lines (qty, name, line total,
-  remove, optional per-item note) with an item-count summary in the header, an
-  order-wide "mark urgent" checkbox and note field, a Percent/Flat discount
-  toggle, and a Subtotal → Discount → Total block (Total as the one
-  inverted/emphasized row).
+  Tiles with an `image` show it above the name/price. The order ledger sheet
+  on the right lists cart lines (qty, name, line total, remove, optional
+  per-item note) with an item-count summary in the header, an order-wide
+  "mark urgent" checkbox and note field, a Percent/Flat discount toggle (with
+  an optional reason label), and a Subtotal → Discount → Total block (Total
+  as the one inverted/emphasized row).
 - **Kitchen (`/kitchen`)**: a search bar plus Pending/Preparing/Ready column
   toggles, then a board of the visible columns (hiding a column lets the rest
   expand to fill the page). Orders shown as ledger tickets (sequential order
@@ -105,10 +110,14 @@ stays about architecture and data shapes.
   their column. Polls `/api/orders` every 3 seconds.
 - **Reports (`/reports`)**: today's order count and revenue as ledger stat
   lines, plus a ruled table of top-selling items by quantity.
-- **Menu (`/menu`)**: ledger table of all menu items with inline edit (name,
-  category, price, variants, combo fields) and delete; an add-item form at the
-  bottom. Variants are entered as `"Name:Price, Name:Price"` text (see
-  `INSTRUCTIONS.md` for why).
+- **Menu (`/menu`)**: a search bar + category filter above a ledger table of
+  menu items (each row shows a 32px thumbnail when it has an `image`).
+  Clicking a row shows its details in a sticky sidebar (Edit/Delete actions,
+  with a confirm dialog before delete); "+ Add item" or Edit opens a form in
+  the same sidebar — name/category/price fields, a repeatable size-row editor
+  for variants, a searchable checklist to build combos from existing items
+  (with a per-item size picker when the item has variants), and a file input
+  + live preview + remove action for the product photo.
 
 ## Dev & build
 - Dev: `npm start` (Express API, :3000) + `cd client && npm run dev` (Vite,

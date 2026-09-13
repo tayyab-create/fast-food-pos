@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
-import { createMenuItem, deleteMenuItem, getMenu, updateMenuItem } from '../api/menu';
+import {
+  createMenuItem,
+  deleteMenuItem,
+  deleteMenuItemImage,
+  getMenu,
+  updateMenuItem,
+  uploadMenuItemImage,
+} from '../api/menu';
 import { LedgerTable } from '../components/LedgerTable';
 import type { MenuItem, Variant } from '../types';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 interface FormState {
   name: string;
@@ -39,12 +49,18 @@ export function Menu() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [comboSearch, setComboSearch] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [removeImageFlag, setRemoveImageFlag] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   function load() {
     return getMenu().then(setItems);
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const selected = items.find((i) => i._id === selectedId) ?? null;
 
@@ -53,9 +69,17 @@ export function Menu() {
     setMode('view');
   }
 
+  function resetImageState(existingImage?: string) {
+    setImageFile(null);
+    setImagePreview(existingImage ?? null);
+    setRemoveImageFlag(false);
+    setImageError(null);
+  }
+
   function openAdd() {
     setSelectedId(null);
     setForm(EMPTY_FORM);
+    resetImageState();
     setMode('add');
   }
 
@@ -69,7 +93,33 @@ export function Menu() {
       isCombo: !!item.isCombo,
       comboItems: item.comboItems ?? [],
     });
+    resetImageState(item.image);
     setMode('edit');
+  }
+
+  function pickImage(file: File | null) {
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Only JPEG, PNG, or WebP images are allowed.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image must be 5MB or smaller.');
+      return;
+    }
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageError(null);
+    setRemoveImageFlag(false);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearImage() {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(null);
+    setRemoveImageFlag(true);
+    setImageError(null);
   }
 
   function cancelForm() {
@@ -133,6 +183,13 @@ export function Menu() {
     const saved = mode === 'edit' && selectedId
       ? await updateMenuItem(selectedId, payload)
       : await createMenuItem(payload);
+
+    if (imageFile) {
+      await uploadMenuItemImage(saved._id, imageFile);
+    } else if (removeImageFlag) {
+      await deleteMenuItemImage(saved._id);
+    }
+
     await load();
     setSelectedId(saved._id);
     setMode('view');
@@ -180,7 +237,15 @@ export function Menu() {
 
         <LedgerTable
           columns={[
-            { header: 'Item', render: (i: MenuItem) => i.name },
+            {
+              header: 'Item',
+              render: (i: MenuItem) => (
+                <>
+                  {i.image && <img className="menu-thumb" src={i.image} alt="" />}
+                  {i.name}
+                </>
+              ),
+            },
             { header: 'Category', render: (i: MenuItem) => i.category },
             {
               header: 'Price',
@@ -223,6 +288,21 @@ export function Menu() {
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                 />
               </label>
+            </div>
+
+            <div className="image-field">
+              {imagePreview && <img className="image-preview" src={imagePreview} alt="" />}
+              <div className="image-field-controls">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+                />
+                {imagePreview && (
+                  <button className="ghost" onClick={clearImage}>Remove image</button>
+                )}
+              </div>
+              {imageError && <p className="field-error">{imageError}</p>}
             </div>
 
             <label className="checkbox-line">
@@ -311,6 +391,7 @@ export function Menu() {
         ) : selected ? (
           <>
             <h2>{selected.name}</h2>
+            {selected.image && <img className="image-preview" src={selected.image} alt="" />}
             <div className="detail-row"><span>Category</span><span>{selected.category}</span></div>
             {selected.variants?.length ? (
               <>

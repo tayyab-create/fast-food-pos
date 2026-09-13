@@ -74,6 +74,9 @@ async function create(req, res) {
     : discount.type === 'percent' ? subtotal * (discount.value / 100)
     : discount.value;
   const total = Math.max(0, subtotal - discountAmount);
+  if (discount && typeof discount.reason === 'string') {
+    discount.reason = discount.reason.slice(0, 100);
+  }
   // ponytail: max+1 lookup, not a race-safe counter — fine for a single till, add a counter doc if multi-till lands
   const last = await Order.findOne().sort({ orderNumber: -1 });
   const orderNumber = (last?.orderNumber ?? 0) + 1;

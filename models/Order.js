@@ -10,7 +10,7 @@ module.exports = mongoose.model('Order', new mongoose.Schema({
   }],
   orderNumber: { type: Number, required: true },
   subtotal: { type: Number, required: true },
-  discount: { type: { type: String, enum: ['percent', 'flat'] }, value: Number },
+  discount: { type: { type: String, enum: ['percent', 'flat'] }, value: Number, reason: String },
   total: { type: Number, required: true },
   urgent: { type: Boolean, default: false },
   note: String,

@@ -48,10 +48,13 @@ These rules exist so the codebase stays easy to extend as more features
   order, Enter to submit) — cashiers are moving fast at a counter.
 - Every destructive action (delete menu item, remove cart line) is a single
   explicit click on a clearly labeled control — no hidden gestures.
-- Menu item **variants** are entered as a `"Name:Price, Name:Price"` text
-  field (e.g. `"Small:5.99, Medium:7.99"`), not a dynamic repeatable-row
-  editor — a deliberate simplification. Upgrade to a real row-by-row editor
-  only once this text format is actually causing mistakes in practice.
+- Menu item **variants** use a repeatable size/price row editor (`+ Add
+  size` per row, a `.remove-btn` to drop one) in the Menu form's sidebar —
+  not a modal, not a text-DSL.
+- **Images** only ever change through the dedicated
+  `POST/DELETE /api/menu/:id/image` endpoints, never the generic menu
+  `PUT` — keep `image` out of `menuController.js`'s `UPDATABLE_FIELDS`
+  allowlist so a client can never set an arbitrary image URL directly.
 
 ## Before you change anything
 1. Check `docs/DESIGN.md` for the current architecture and data shapes, and

@@ -16,6 +16,8 @@ app.use('/api/menu', menuRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/reports', reportsRouter);
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 const clientDist = path.join(__dirname, 'client', 'dist');
 app.use(express.static(clientDist));
 app.get(/^(?!\/api).*/, (req, res) => {

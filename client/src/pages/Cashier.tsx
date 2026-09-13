@@ -13,6 +13,7 @@ export function Cashier() {
   const [expandedTile, setExpandedTile] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<Discount['type'] | null>(null);
   const [discountValue, setDiscountValue] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
   const [urgent, setUrgent] = useState(false);
   const [orderNote, setOrderNote] = useState('');
 
@@ -85,7 +86,7 @@ export function Cashier() {
     : discountValueNum;
   const total = Math.max(0, subtotal - discountAmount);
   const discount: Discount | undefined = discountType && discountValueNum && !discountError
-    ? { type: discountType, value: discountValueNum }
+    ? { type: discountType, value: discountValueNum, reason: discountReason || undefined }
     : undefined;
 
   async function checkout() {
@@ -94,6 +95,7 @@ export function Cashier() {
     setCart([]);
     setDiscountType(null);
     setDiscountValue('');
+    setDiscountReason('');
     setUrgent(false);
     setOrderNote('');
     alert('Order placed!');
@@ -131,6 +133,7 @@ export function Cashier() {
               onClick={() => tapTile(item)}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && tapTile(item)}
             >
+              {item.image && <img className="item-tile-image" src={item.image} alt="" />}
               <span className="name">{item.name}</span>
               {item.isCombo && item.comboItems?.length && (
                 <span className="combo-contents">{item.comboItems.join(' + ')}</span>
@@ -238,6 +241,14 @@ export function Cashier() {
               </div>
             )}
             {discountError && <p className="field-error">{discountError}</p>}
+            {discountType && (
+              <input
+                className="discount-reason-input"
+                placeholder="Reason (e.g. staff discount)"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+              />
+            )}
           </div>
         )}
 
