@@ -328,26 +328,28 @@ export function Cashier() {
             </div>
             {discountType && (
               <div className="discount-value">
+                <span className={`discount-unit-field${discountError ? ' invalid' : ''}`}>
+                  {discountType === 'flat' && <span className="discount-unit">$</span>}
+                  <input
+                    type="number"
+                    min="0"
+                    max={discountType === 'percent' ? 100 : undefined}
+                    className="num"
+                    placeholder={discountType === 'percent' ? '10' : '5.00'}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                  />
+                  {discountType === 'percent' && <span className="discount-unit">%</span>}
+                </span>
                 <input
-                  type="number"
-                  min="0"
-                  max={discountType === 'percent' ? 100 : undefined}
-                  className={discountError ? 'invalid' : undefined}
-                  placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 5.00'}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
+                  className="discount-reason-input"
+                  placeholder="Reason (e.g. staff discount)"
+                  value={discountReason}
+                  onChange={(e) => setDiscountReason(e.target.value)}
                 />
               </div>
             )}
             {discountError && <p className="field-error">{discountError}</p>}
-            {discountType && (
-              <input
-                className="discount-reason-input"
-                placeholder="Reason (e.g. staff discount)"
-                value={discountReason}
-                onChange={(e) => setDiscountReason(e.target.value)}
-              />
-            )}
           </div>
         )}
 

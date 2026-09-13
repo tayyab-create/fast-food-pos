@@ -353,9 +353,10 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 
 .ledger-sheet .empty { color: var(--muted); font-size: 13px; }
 
-.order-options { margin-top: 16px; }
+.order-options {
+  margin-top: 16px;
+}
 .order-note-input { width: 100%; margin-top: 8px; }
-.discount-reason-input { width: 100%; margin-top: 8px; }
 .ledger-lines {
   flex: 1 1 auto;
   min-height: 0;
@@ -394,32 +395,69 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .ledger-line .note-input { width: 100%; margin-top: 6px; font-size: 12px; padding: 5px 8px; }
 
 /* Totals block: subtotal/discount rows, then an inverted final total row */
-.totals-block { margin-top: 14px; }
+.totals-block {
+  margin-top: 14px;
+  padding: 14px 16px 16px;
+  background: var(--paper);
+  border-top: 1px dashed var(--line-strong);
+  border-bottom: 1px dashed var(--line-strong);
+}
 .totals-row {
   display: flex;
   justify-content: space-between;
   padding: 5px 0;
   font-size: 13px;
   color: var(--ink-soft);
+  border-bottom: 1px dashed var(--line);
 }
+.totals-row:last-of-type { border-bottom: none; }
 .total-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  background: var(--ink);
+  background: var(--forest-dark);
   color: white;
   padding: 12px 14px;
-  margin-top: 8px;
+  margin-top: 10px;
   border-radius: var(--radius);
   font-size: 16px;
 }
 .total-row .num { font-weight: 600; color: white; }
 
-.discount-block .section-header { margin-top: 16px; }
+.discount-block, .payment-block {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 .discount-block .discount-value { display: flex; gap: 8px; margin-top: 8px; }
-.discount-block .discount-value input { flex: 1; }
-
-.payment-block .section-header { margin-top: 16px; }
+.discount-block .discount-value input:not(.num) { flex: 1; }
+.discount-unit-field {
+  display: flex;
+  align-items: center;
+  width: 96px;
+  flex: 0 0 96px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0 8px;
+}
+.discount-unit-field:focus-within {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px var(--forest-tint);
+}
+.discount-unit-field.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-tint);
+}
+.discount-unit-field input.num {
+  border: none;
+  padding: 7px 0;
+  width: 0;
+  flex: 1 1 0%;
+  background: transparent;
+}
+.discount-unit-field input.num:focus { box-shadow: none; }
+.discount-unit { color: var(--muted); font-family: var(--font-num); font-size: 13px; flex-shrink: 0; }
 
 .checkout-row { display: flex; gap: 10px; margin-top: 14px; }
 
@@ -658,6 +696,38 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   font-size: 13px;
   color: var(--ink);
   margin: 14px 0;
+  cursor: pointer;
+}
+.checkbox-line input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.checkbox-line input[type="checkbox"]:checked {
+  background: var(--forest-dark);
+  border-color: var(--forest-dark);
+}
+.checkbox-line input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.checkbox-line input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--forest-tint);
 }
 
 .variant-editor { margin: 8px 0 4px; display: flex; flex-direction: column; gap: 8px; }

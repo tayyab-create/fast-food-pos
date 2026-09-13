@@ -76,10 +76,15 @@ labels or buttons — that's what keeps it feeling institutional rather than
   light header background, not zebra striping or heavy borders.
 - Radius is minimal (3px) everywhere — just enough to soften edges, not
   enough to read as "app UI." No pill shapes except the one status badge.
-- Totals/summary blocks (the Cashier order ledger) are right-aligned,
-  fixed-width panels like a receipt subtotal box, with the final total given
-  a dark, inverted (`--ink` background, white text) row for emphasis — the
-  one "loud" element per component.
+- Totals/summary blocks (the Cashier order ledger) read like a paper
+  receipt: a `--paper`-tinted panel with dashed hairline rules (`--line`,
+  `--line-strong`) separating Subtotal/Discount rows — dashes, not solid
+  lines, distinguish a receipt tally from an ordinary table. The final
+  total is given a forest-green inverted row (`--forest-dark` background,
+  white text) for emphasis — the one "loud" element per component. Never
+  pure `--ink`/black for this emphasis — forest green is the app's only
+  accent color, so the loud element stays inside the established palette
+  instead of introducing a second one.
 
 ## Components & interaction
 
