@@ -462,16 +462,25 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   max-height: calc(100vh - 40px);
   overflow-y: auto;
 }
-.order-confirm-modal { text-align: center; }
-.order-confirm-modal .confirm-check { margin-bottom: 14px; }
-.order-confirm-modal h2 { border: none; padding: 0; margin: 0 0 16px; }
-.order-confirm-modal .section-header { text-align: left; margin-bottom: 8px; }
+.order-confirm-modal {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+}
+.order-confirm-modal .confirm-check { margin-bottom: 14px; flex-shrink: 0; align-self: center; }
+.order-confirm-modal h2 { border: none; padding: 0; margin: 0 0 16px; flex-shrink: 0; }
+.order-confirm-modal .section-header { text-align: left; margin-bottom: 8px; flex-shrink: 0; min-width: 0; }
+.order-confirm-modal .list-header { flex-shrink: 0; margin-bottom: 8px; }
+.order-confirm-modal .list-header .section-header { margin-bottom: 0; }
 .order-confirm-items {
   list-style: none;
   margin: 0 0 4px;
   padding: 0;
   text-align: left;
   border-top: 1px solid var(--line);
+  overflow-y: auto;
+  max-height: 260px;
 }
 .order-confirm-items li {
   display: flex;
@@ -483,6 +492,9 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 }
 .order-confirm-items li .name { flex: 1; }
 .order-confirm-modal .totals-row span:last-child { color: var(--ink); font-weight: 500; }
+.order-confirm-note { text-align: left; font-size: 12px; margin: 10px 0 0; flex-shrink: 0; }
+.order-confirm-modal .totals-block,
+.order-confirm-modal > button.primary { flex-shrink: 0; }
 
 /* Kitchen — 3-column board */
 .kds-toolbar {
@@ -521,8 +533,8 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   border-radius: var(--radius);
   padding: 14px;
 }
-.ticket.overdue { border-color: var(--danger); }
-.ticket.urgent { border-width: 2px; border-color: var(--danger); }
+.ticket.urgent { background: var(--ochre-tint); }
+.ticket.overdue { background: var(--danger-tint); }
 .ticket-header {
   display: flex;
   justify-content: space-between;

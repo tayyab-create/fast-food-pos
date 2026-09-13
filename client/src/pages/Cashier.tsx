@@ -131,6 +131,7 @@ export function Cashier() {
   }
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
+  const placedItemCount = placedOrder?.items.reduce((sum, i) => sum + i.qty, 0) ?? 0;
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const discountValueNum = Number(discountValue) || 0;
 
@@ -410,7 +411,12 @@ export function Cashier() {
               <path d="M12 20.5l5.5 5.5L28 14" stroke="var(--forest)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <h2>Order #{placedOrder.orderNumber} placed</h2>
-            <div className="section-header">Items</div>
+            <div className="list-header">
+              <div className="section-header">Items</div>
+              <span className="order-summary">
+                {placedItemCount} item{placedItemCount !== 1 ? 's' : ''}
+              </span>
+            </div>
             <ul className="order-confirm-items">
               {placedOrder.items.map((item, i) => (
                 <li key={i}>
@@ -420,7 +426,32 @@ export function Cashier() {
                 </li>
               ))}
             </ul>
+            {placedOrder.note && (
+              <p className="order-confirm-note">
+                <span className="muted-text">Order note: </span>
+                {placedOrder.note}
+              </p>
+            )}
             <div className="totals-block">
+              <div className="totals-row">
+                <span>Subtotal</span>
+                <span className="num">${placedOrder.subtotal.toFixed(2)}</span>
+              </div>
+              {placedOrder.discount && (
+                <div className="totals-row">
+                  <span>
+                    Discount
+                    {placedOrder.discount.reason && <span className="muted-text"> ({placedOrder.discount.reason})</span>}
+                  </span>
+                  <span className="num">
+                    −$
+                    {(placedOrder.discount.type === 'percent'
+                      ? placedOrder.subtotal * (placedOrder.discount.value / 100)
+                      : placedOrder.discount.value
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              )}
               <div className="totals-row">
                 <span>Payment</span>
                 <span>{placedOrder.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>

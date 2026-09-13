@@ -12,7 +12,7 @@ const NEXT_LABEL: Record<Exclude<OrderStatus, 'completed'>, string> = {
   preparing: 'Mark Ready',
   ready: 'Complete',
 };
-const OVERDUE_MINUTES = 10;
+const OVERDUE_MINUTES = 45;
 
 const COLUMNS: { status: Exclude<OrderStatus, 'completed'>; label: string }[] = [
   { status: 'pending', label: 'Pending' },
@@ -22,6 +22,20 @@ const COLUMNS: { status: Exclude<OrderStatus, 'completed'>; label: string }[] = 
 
 function elapsedMinutes(createdAt: string): number {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+}
+
+function formatElapsed(minutes: number): string {
+  if (minutes <= 0) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  if (hours < 24) return `${hours}h${remMinutes ? ` ${remMinutes}m` : ''} ago`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  if (days < 365) return `${days}d${remHours ? ` ${remHours}h` : ''} ago`;
+  const years = Math.floor(days / 365);
+  const remDays = days % 365;
+  return `${years}y${remDays ? ` ${remDays}d` : ''} ago`;
 }
 
 type Status = Exclude<OrderStatus, 'completed'>;
@@ -119,7 +133,7 @@ export function Kitchen() {
                           {o.urgent && <span className="urgent-tag">Urgent</span>}
                         </span>
                         <span className={`ticket-time${overdue ? ' overdue' : ''}`}>
-                          {minutes <= 0 ? 'just now' : `${minutes}m ago`}
+                          {formatElapsed(minutes)}
                         </span>
                       </div>
                       {o.note && <p className="ticket-order-note">{o.note}</p>}
