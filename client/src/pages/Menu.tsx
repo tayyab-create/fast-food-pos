@@ -215,7 +215,7 @@ export function Menu() {
     .filter((i) => i.name.toLowerCase().includes(comboSearch.toLowerCase()));
 
   return (
-    <div className="pos-layout">
+    <div className="pos-layout menu-layout">
       <div className="pos-menu">
         <div className="list-header">
           <div className="section-header">Menu items</div>
@@ -238,14 +238,11 @@ export function Menu() {
         <LedgerTable
           columns={[
             {
-              header: 'Item',
-              render: (i: MenuItem) => (
-                <>
-                  {i.image && <img className="menu-thumb" src={i.image} alt="" />}
-                  {i.name}
-                </>
-              ),
+              header: '',
+              render: (i: MenuItem) =>
+                i.image ? <img className="menu-avatar" src={i.image} alt="" /> : <span className="menu-avatar-empty" />,
             },
+            { header: 'Item', render: (i: MenuItem) => i.name },
             { header: 'Category', render: (i: MenuItem) => i.category },
             {
               header: 'Price',

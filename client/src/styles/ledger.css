@@ -75,6 +75,7 @@ main {
   padding: 28px;
 }
 main.wide { max-width: 1160px; }
+.menu-layout .pos-menu { flex: 4; }
 
 /* Section header: small-caps label + hairline extending to the right */
 .section-header {
@@ -542,14 +543,21 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 
 .form-actions { display: flex; gap: 10px; margin-top: 20px; }
 
-.menu-thumb {
+.menu-avatar {
+  display: block;
   width: 32px;
   height: 32px;
   object-fit: cover;
-  border-radius: var(--radius);
+  border-radius: 50%;
   border: 1px solid var(--line);
-  margin-right: 8px;
-  vertical-align: middle;
+}
+.menu-avatar-empty {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-strong);
+  background: var(--paper);
 }
 
 .image-field { margin-bottom: 16px; }
