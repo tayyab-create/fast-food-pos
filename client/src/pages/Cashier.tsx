@@ -39,7 +39,7 @@ export function Cashier() {
   const [discountReason, setDiscountReason] = useState('');
   const [urgent, setUrgent] = useState(false);
   const [orderNote, setOrderNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>('cash');
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
@@ -111,7 +111,7 @@ export function Cashier() {
     setDiscountReason(empty.discountReason);
     setUrgent(empty.urgent);
     setOrderNote(empty.orderNote);
-    setPaymentMethod(null);
+    setPaymentMethod('cash');
   }
 
   function resumeOrder(held: HeldOrder) {
@@ -121,7 +121,7 @@ export function Cashier() {
     setDiscountReason(held.discountReason);
     setUrgent(held.urgent);
     setOrderNote(held.orderNote);
-    setPaymentMethod(null);
+    setPaymentMethod('cash');
     setHeldOrders((prev) => prev.filter((h) => h.id !== held.id));
   }
 
@@ -162,7 +162,7 @@ export function Cashier() {
     setDiscountReason('');
     setUrgent(false);
     setOrderNote('');
-    setPaymentMethod(null);
+    setPaymentMethod('cash');
     setPlacedOrder(order);
   }
 
@@ -234,12 +234,192 @@ export function Cashier() {
       </div>
 
       <div className="ledger-sheet">
-        {placedOrder ? (
-          <div className="order-confirm">
-            <div className="ledger-sheet-header">
-              <h2>Order #{placedOrder.orderNumber}</h2>
-              <span className={`status-pill ${placedOrder.status}`}>{placedOrder.status}</span>
+        {heldOrders.length > 0 && (
+          <div className="held-orders">
+            {heldOrders.map((held) => (
+              <div className="held-order-chip" key={held.id}>
+                <button className="ghost" onClick={() => resumeOrder(held)}>{held.label}</button>
+                <button className="icon" aria-label="Discard held order" onClick={() => discardHeld(held.id)}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="ledger-sheet-header">
+          <h2>Order</h2>
+          {cart.length > 0 && (
+            <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+          )}
+        </div>
+        <div className="ledger-lines">
+          {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
+          {cart.map((line) => (
+            <div className="ledger-line" key={line.name}>
+              <div className="ledger-line-row">
+                <span className="qty-controls">
+                  <button className="icon" onClick={() => changeQty(line.name, -1)}>−</button>
+                  <input
+                    className="qty-input num"
+                    type="number"
+                    min={1}
+                    value={line.qty}
+                    onChange={(e) => setQty(line.name, Number(e.target.value))}
+                  />
+                  <button className="icon" onClick={() => changeQty(line.name, 1)}>+</button>
+                </span>
+                <span className="name">{line.name}</span>
+                <span className="line-total num">${(line.price * line.qty).toFixed(2)}</span>
+                <button
+                  className={`icon note-btn${line.note ? ' active' : ''}`}
+                  aria-label="Add note"
+                  onClick={() => setOpenNoteFor(openNoteFor === line.name ? null : line.name)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+                    <path d="M2.5 3.5h11M2.5 7h11M2.5 10.5h7" strokeLinecap="round" />
+                  </svg>
+                </button>
+                <button className="remove-btn" onClick={() => removeLine(line.name)} aria-label="Remove item">×</button>
+              </div>
+              {(openNoteFor === line.name || line.note) && (
+                <input
+                  className="note-input"
+                  placeholder="note (e.g. no onions)"
+                  autoFocus={openNoteFor === line.name}
+                  value={line.note ?? ''}
+                  onChange={(e) => setNote(line.name, e.target.value)}
+                />
+              )}
             </div>
+          ))}
+        </div>
+
+        {cart.length > 0 && (
+          <div className="order-options">
+            <label className="checkbox-line">
+              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
+              Mark order urgent
+            </label>
+            <input
+              className="order-note-input"
+              placeholder="Order note (e.g. customer waiting outside)"
+              value={orderNote}
+              onChange={(e) => setOrderNote(e.target.value)}
+            />
+          </div>
+        )}
+
+        {cart.length > 0 && (
+          <div className="discount-block">
+            <div className="section-header">Discount</div>
+            <div className="option-row">
+              <button
+                className={discountType === 'percent' ? 'active' : ''}
+                onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
+              >
+                Percent
+              </button>
+              <button
+                className={discountType === 'flat' ? 'active' : ''}
+                onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
+              >
+                Flat $
+              </button>
+            </div>
+            {discountType && (
+              <div className="discount-value">
+                <input
+                  type="number"
+                  min="0"
+                  max={discountType === 'percent' ? 100 : undefined}
+                  className={discountError ? 'invalid' : undefined}
+                  placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 5.00'}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                />
+              </div>
+            )}
+            {discountError && <p className="field-error">{discountError}</p>}
+            {discountType && (
+              <input
+                className="discount-reason-input"
+                placeholder="Reason (e.g. staff discount)"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+              />
+            )}
+          </div>
+        )}
+
+        {cart.length > 0 && (
+          <div className="payment-block">
+            <div className="section-header">Payment method</div>
+            <div className="option-row">
+              <button
+                className={paymentMethod === 'cash' ? 'active' : ''}
+                onClick={() => setPaymentMethod('cash')}
+              >
+                Cash
+              </button>
+              <button
+                className={paymentMethod === 'card' ? 'active' : ''}
+                onClick={() => setPaymentMethod('card')}
+              >
+                Card
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="totals-block">
+          <div className="totals-row">
+            <span>Subtotal</span>
+            <span className="num">${subtotal.toFixed(2)}</span>
+          </div>
+          {discountAmount > 0 && (
+            <div className="totals-row">
+              <span>Discount</span>
+              <span className="num">−${discountAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="total-row">
+            <span>Total</span>
+            <span className="num">${total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="checkout-row">
+          <button className="ghost" disabled={cart.length === 0} onClick={holdOrder}>
+            Hold order
+          </button>
+          <button
+            className="primary"
+            style={{ flex: 1 }}
+            disabled={cart.length === 0 || !!discountError || !paymentMethod}
+            onClick={checkout}
+          >
+            Place order
+          </button>
+        </div>
+      </div>
+
+      {placedOrder && (
+        <div className="modal-overlay" onClick={startNewOrder}>
+          <div className="modal order-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <svg className="confirm-check" width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <circle cx="20" cy="20" r="18" stroke="var(--forest)" strokeWidth="1.5" />
+              <path d="M12 20.5l5.5 5.5L28 14" stroke="var(--forest)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <h2>Order #{placedOrder.orderNumber} placed</h2>
+            <div className="section-header">Items</div>
+            <ul className="order-confirm-items">
+              {placedOrder.items.map((item, i) => (
+                <li key={i}>
+                  <span className="num">{item.qty}×</span>
+                  <span className="name">{item.name}</span>
+                  <span className="num">${(item.price * item.qty).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
             <div className="totals-block">
               <div className="totals-row">
                 <span>Payment</span>
@@ -254,177 +434,8 @@ export function Cashier() {
               New order
             </button>
           </div>
-        ) : (
-          <>
-            {heldOrders.length > 0 && (
-              <div className="held-orders">
-                {heldOrders.map((held) => (
-                  <div className="held-order-chip" key={held.id}>
-                    <button className="ghost" onClick={() => resumeOrder(held)}>{held.label}</button>
-                    <button className="icon" aria-label="Discard held order" onClick={() => discardHeld(held.id)}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="ledger-sheet-header">
-              <h2>Order</h2>
-              {cart.length > 0 && (
-                <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
-              )}
-            </div>
-            <div className="ledger-lines">
-              {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
-              {cart.map((line) => (
-                <div className="ledger-line" key={line.name}>
-                  <div className="ledger-line-row">
-                    <span className="qty-controls">
-                      <button className="icon" onClick={() => changeQty(line.name, -1)}>−</button>
-                      <input
-                        className="qty-input num"
-                        type="number"
-                        min={1}
-                        value={line.qty}
-                        onChange={(e) => setQty(line.name, Number(e.target.value))}
-                      />
-                      <button className="icon" onClick={() => changeQty(line.name, 1)}>+</button>
-                    </span>
-                    <span className="name">{line.name}</span>
-                    <span className="line-total num">${(line.price * line.qty).toFixed(2)}</span>
-                    <button
-                      className={`icon note-btn${line.note ? ' active' : ''}`}
-                      aria-label="Add note"
-                      onClick={() => setOpenNoteFor(openNoteFor === line.name ? null : line.name)}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-                        <path d="M2.5 3.5h11M2.5 7h11M2.5 10.5h7" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                    <button className="remove-btn" onClick={() => removeLine(line.name)} aria-label="Remove item">×</button>
-                  </div>
-                  {(openNoteFor === line.name || line.note) && (
-                    <input
-                      className="note-input"
-                      placeholder="note (e.g. no onions)"
-                      autoFocus={openNoteFor === line.name}
-                      value={line.note ?? ''}
-                      onChange={(e) => setNote(line.name, e.target.value)}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="order-options">
-                <label className="checkbox-line">
-                  <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
-                  Mark order urgent
-                </label>
-                <input
-                  className="order-note-input"
-                  placeholder="Order note (e.g. customer waiting outside)"
-                  value={orderNote}
-                  onChange={(e) => setOrderNote(e.target.value)}
-                />
-              </div>
-            )}
-
-            {cart.length > 0 && (
-              <div className="discount-block">
-                <div className="section-header">Discount</div>
-                <div className="option-row">
-                  <button
-                    className={discountType === 'percent' ? 'active' : ''}
-                    onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
-                  >
-                    Percent
-                  </button>
-                  <button
-                    className={discountType === 'flat' ? 'active' : ''}
-                    onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
-                  >
-                    Flat $
-                  </button>
-                </div>
-                {discountType && (
-                  <div className="discount-value">
-                    <input
-                      type="number"
-                      min="0"
-                      max={discountType === 'percent' ? 100 : undefined}
-                      className={discountError ? 'invalid' : undefined}
-                      placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 5.00'}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                    />
-                  </div>
-                )}
-                {discountError && <p className="field-error">{discountError}</p>}
-                {discountType && (
-                  <input
-                    className="discount-reason-input"
-                    placeholder="Reason (e.g. staff discount)"
-                    value={discountReason}
-                    onChange={(e) => setDiscountReason(e.target.value)}
-                  />
-                )}
-              </div>
-            )}
-
-            {cart.length > 0 && (
-              <div className="payment-block">
-                <div className="section-header">Payment method</div>
-                <div className="option-row">
-                  <button
-                    className={paymentMethod === 'cash' ? 'active' : ''}
-                    onClick={() => setPaymentMethod('cash')}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    className={paymentMethod === 'card' ? 'active' : ''}
-                    onClick={() => setPaymentMethod('card')}
-                  >
-                    Card
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="totals-block">
-              <div className="totals-row">
-                <span>Subtotal</span>
-                <span className="num">${subtotal.toFixed(2)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="totals-row">
-                  <span>Discount</span>
-                  <span className="num">−${discountAmount.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="total-row">
-                <span>Total</span>
-                <span className="num">${total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="checkout-row">
-              <button className="ghost" disabled={cart.length === 0} onClick={holdOrder}>
-                Hold order
-              </button>
-              <button
-                className="primary"
-                style={{ flex: 1 }}
-                disabled={cart.length === 0 || !!discountError || !paymentMethod}
-                onClick={checkout}
-              >
-                Checkout
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

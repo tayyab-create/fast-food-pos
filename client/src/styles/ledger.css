@@ -442,7 +442,47 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .held-order-chip button.ghost { border: none; padding: 5px 8px; font-size: 12px; border-radius: 0; }
 .held-order-chip button.icon { padding: 5px 8px; font-size: 13px; }
 
-.order-confirm .totals-row span:last-child { color: var(--ink); font-weight: 500; }
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 43, 36, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 380px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.order-confirm-modal { text-align: center; }
+.order-confirm-modal .confirm-check { margin-bottom: 14px; }
+.order-confirm-modal h2 { border: none; padding: 0; margin: 0 0 16px; }
+.order-confirm-modal .section-header { text-align: left; margin-bottom: 8px; }
+.order-confirm-items {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  text-align: left;
+  border-top: 1px solid var(--line);
+}
+.order-confirm-items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.order-confirm-items li .name { flex: 1; }
+.order-confirm-modal .totals-row span:last-child { color: var(--ink); font-weight: 500; }
 
 /* Kitchen — 3-column board */
 .kds-toolbar {
