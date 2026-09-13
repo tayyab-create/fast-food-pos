@@ -1,9 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMenu } from '../api/menu';
 import { createOrder } from '../api/orders';
-import type { Discount, MenuItem, OrderItem } from '../types';
+import type { Discount, MenuItem, Order, OrderItem, PaymentMethod } from '../types';
 
 const ALL = 'All';
+
+interface HeldOrder {
+  id: string;
+  label: string;
+  cart: OrderItem[];
+  discountType: Discount['type'] | null;
+  discountValue: string;
+  discountReason: string;
+  urgent: boolean;
+  orderNote: string;
+}
+
+function emptyCartState() {
+  return {
+    cart: [] as OrderItem[],
+    discountType: null as Discount['type'] | null,
+    discountValue: '',
+    discountReason: '',
+    urgent: false,
+    orderNote: '',
+  };
+}
 
 export function Cashier() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -11,11 +33,15 @@ export function Cashier() {
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
   const [search, setSearch] = useState('');
   const [expandedTile, setExpandedTile] = useState<string | null>(null);
+  const [openNoteFor, setOpenNoteFor] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<Discount['type'] | null>(null);
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState('');
   const [urgent, setUrgent] = useState(false);
   const [orderNote, setOrderNote] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     getMenu().then(setMenu);
@@ -58,12 +84,50 @@ export function Cashier() {
     );
   }
 
+  function setQty(name: string, qty: number) {
+    if (!(qty > 0)) return;
+    setCart((prev) => prev.map((i) => (i.name === name ? { ...i, qty } : i)));
+  }
+
   function removeLine(name: string) {
     setCart((prev) => prev.filter((i) => i.name !== name));
   }
 
   function setNote(name: string, note: string) {
     setCart((prev) => prev.map((i) => (i.name === name ? { ...i, note } : i)));
+  }
+
+  function holdOrder() {
+    if (cart.length === 0) return;
+    const label = cart[0].name + (cart.length > 1 ? ` +${cart.length - 1} more` : '');
+    setHeldOrders((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), label, cart, discountType, discountValue, discountReason, urgent, orderNote },
+    ]);
+    const empty = emptyCartState();
+    setCart(empty.cart);
+    setDiscountType(empty.discountType);
+    setDiscountValue(empty.discountValue);
+    setDiscountReason(empty.discountReason);
+    setUrgent(empty.urgent);
+    setOrderNote(empty.orderNote);
+    setPaymentMethod(null);
+  }
+
+  function resumeOrder(held: HeldOrder) {
+    setCart(held.cart);
+    setDiscountType(held.discountType);
+    setDiscountValue(held.discountValue);
+    setDiscountReason(held.discountReason);
+    setUrgent(held.urgent);
+    setOrderNote(held.orderNote);
+    setPaymentMethod(null);
+    setHeldOrders((prev) => prev.filter((h) => h.id !== held.id));
+  }
+
+  function discardHeld(id: string) {
+    if (!window.confirm('Discard this held order?')) return;
+    setHeldOrders((prev) => prev.filter((h) => h.id !== id));
   }
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
@@ -90,15 +154,20 @@ export function Cashier() {
     : undefined;
 
   async function checkout() {
-    if (discountError) return;
-    await createOrder(cart, { discount, urgent, note: orderNote || undefined });
+    if (discountError || !paymentMethod) return;
+    const order = await createOrder(cart, { discount, urgent, note: orderNote || undefined, paymentMethod });
     setCart([]);
     setDiscountType(null);
     setDiscountValue('');
     setDiscountReason('');
     setUrgent(false);
     setOrderNote('');
-    alert('Order placed!');
+    setPaymentMethod(null);
+    setPlacedOrder(order);
+  }
+
+  function startNewOrder() {
+    setPlacedOrder(null);
   }
 
   return (
@@ -165,113 +234,185 @@ export function Cashier() {
       </div>
 
       <div className="ledger-sheet">
-        <div className="ledger-sheet-header">
-          <h2>Order</h2>
-          {cart.length > 0 && (
-            <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
-          )}
-        </div>
-        <div className="ledger-lines">
-          {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
-          {cart.map((line) => (
-            <div className="ledger-line" key={line.name}>
-              <div className="ledger-line-row">
-                <span className="qty-controls">
-                  <button className="icon" onClick={() => changeQty(line.name, -1)}>−</button>
-                  <span className="num">{line.qty}</span>
-                  <button className="icon" onClick={() => changeQty(line.name, 1)}>+</button>
-                </span>
-                <span className="name">{line.name}</span>
-                <span className="line-total num">${(line.price * line.qty).toFixed(2)}</span>
-                <button className="remove-btn" onClick={() => removeLine(line.name)} aria-label="Remove item">×</button>
-              </div>
-              <input
-                className="note-input"
-                placeholder="note (e.g. no onions)"
-                value={line.note ?? ''}
-                onChange={(e) => setNote(line.name, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-
-        {cart.length > 0 && (
-          <div className="order-options">
-            <label className="checkbox-line">
-              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
-              Mark order urgent
-            </label>
-            <input
-              className="order-note-input"
-              placeholder="Order note (e.g. customer waiting outside)"
-              value={orderNote}
-              onChange={(e) => setOrderNote(e.target.value)}
-            />
+        {placedOrder ? (
+          <div className="order-confirm">
+            <div className="order-confirm-badge">✓</div>
+            <h2>Order #{placedOrder.orderNumber} placed</h2>
+            <p className="muted-text">
+              {placedOrder.paymentMethod === 'cash' ? 'Cash' : 'Card'} · ${placedOrder.total.toFixed(2)}
+            </p>
+            <button className="primary" style={{ width: '100%', marginTop: 16 }} onClick={startNewOrder}>
+              New order
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            {heldOrders.length > 0 && (
+              <div className="held-orders">
+                {heldOrders.map((held) => (
+                  <div className="held-order-chip" key={held.id}>
+                    <button className="ghost" onClick={() => resumeOrder(held)}>{held.label}</button>
+                    <button className="icon" aria-label="Discard held order" onClick={() => discardHeld(held.id)}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
 
-        {cart.length > 0 && (
-          <div className="discount-block">
-            <div className="section-header">Discount</div>
-            <div className="option-row">
-              <button
-                className={discountType === 'percent' ? 'active' : ''}
-                onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
-              >
-                Percent
-              </button>
-              <button
-                className={discountType === 'flat' ? 'active' : ''}
-                onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
-              >
-                Flat $
-              </button>
+            <div className="ledger-sheet-header">
+              <h2>Order</h2>
+              {cart.length > 0 && (
+                <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+              )}
             </div>
-            {discountType && (
-              <div className="discount-value">
+            <div className="ledger-lines">
+              {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
+              {cart.map((line) => (
+                <div className="ledger-line" key={line.name}>
+                  <div className="ledger-line-row">
+                    <span className="qty-controls">
+                      <button className="icon" onClick={() => changeQty(line.name, -1)}>−</button>
+                      <input
+                        className="qty-input num"
+                        type="number"
+                        min={1}
+                        value={line.qty}
+                        onChange={(e) => setQty(line.name, Number(e.target.value))}
+                      />
+                      <button className="icon" onClick={() => changeQty(line.name, 1)}>+</button>
+                    </span>
+                    <span className="name">{line.name}</span>
+                    <span className="line-total num">${(line.price * line.qty).toFixed(2)}</span>
+                    <button
+                      className="icon"
+                      aria-label="Add note"
+                      onClick={() => setOpenNoteFor(openNoteFor === line.name ? null : line.name)}
+                    >
+                      📝
+                    </button>
+                    <button className="remove-btn" onClick={() => removeLine(line.name)} aria-label="Remove item">×</button>
+                  </div>
+                  {(openNoteFor === line.name || line.note) && (
+                    <input
+                      className="note-input"
+                      placeholder="note (e.g. no onions)"
+                      autoFocus={openNoteFor === line.name}
+                      value={line.note ?? ''}
+                      onChange={(e) => setNote(line.name, e.target.value)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="order-options">
+                <label className="checkbox-line">
+                  <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
+                  Mark order urgent
+                </label>
                 <input
-                  type="number"
-                  min="0"
-                  max={discountType === 'percent' ? 100 : undefined}
-                  className={discountError ? 'invalid' : undefined}
-                  placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 5.00'}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
+                  className="order-note-input"
+                  placeholder="Order note (e.g. customer waiting outside)"
+                  value={orderNote}
+                  onChange={(e) => setOrderNote(e.target.value)}
                 />
               </div>
             )}
-            {discountError && <p className="field-error">{discountError}</p>}
-            {discountType && (
-              <input
-                className="discount-reason-input"
-                placeholder="Reason (e.g. staff discount)"
-                value={discountReason}
-                onChange={(e) => setDiscountReason(e.target.value)}
-              />
+
+            {cart.length > 0 && (
+              <div className="discount-block">
+                <div className="section-header">Discount</div>
+                <div className="option-row">
+                  <button
+                    className={discountType === 'percent' ? 'active' : ''}
+                    onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
+                  >
+                    Percent
+                  </button>
+                  <button
+                    className={discountType === 'flat' ? 'active' : ''}
+                    onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
+                  >
+                    Flat $
+                  </button>
+                </div>
+                {discountType && (
+                  <div className="discount-value">
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === 'percent' ? 100 : undefined}
+                      className={discountError ? 'invalid' : undefined}
+                      placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 5.00'}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                    />
+                  </div>
+                )}
+                {discountError && <p className="field-error">{discountError}</p>}
+                {discountType && (
+                  <input
+                    className="discount-reason-input"
+                    placeholder="Reason (e.g. staff discount)"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                  />
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        <div className="totals-block">
-          <div className="totals-row">
-            <span>Subtotal</span>
-            <span className="num">${subtotal.toFixed(2)}</span>
-          </div>
-          {discountAmount > 0 && (
-            <div className="totals-row">
-              <span>Discount</span>
-              <span className="num">−${discountAmount.toFixed(2)}</span>
+            {cart.length > 0 && (
+              <div className="payment-block">
+                <div className="section-header">Payment method</div>
+                <div className="option-row">
+                  <button
+                    className={paymentMethod === 'cash' ? 'active' : ''}
+                    onClick={() => setPaymentMethod('cash')}
+                  >
+                    Cash
+                  </button>
+                  <button
+                    className={paymentMethod === 'card' ? 'active' : ''}
+                    onClick={() => setPaymentMethod('card')}
+                  >
+                    Card
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="totals-block">
+              <div className="totals-row">
+                <span>Subtotal</span>
+                <span className="num">${subtotal.toFixed(2)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="totals-row">
+                  <span>Discount</span>
+                  <span className="num">−${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="total-row">
+                <span>Total</span>
+                <span className="num">${total.toFixed(2)}</span>
+              </div>
             </div>
-          )}
-          <div className="total-row">
-            <span>Total</span>
-            <span className="num">${total.toFixed(2)}</span>
-          </div>
-        </div>
 
-        <button className="primary" style={{ width: '100%', marginTop: 14 }} disabled={cart.length === 0 || !!discountError} onClick={checkout}>
-          Checkout
-        </button>
+            <div className="checkout-row">
+              <button className="ghost" disabled={cart.length === 0} onClick={holdOrder}>
+                Hold order
+              </button>
+              <button
+                className="primary"
+                style={{ flex: 1 }}
+                disabled={cart.length === 0 || !!discountError || !paymentMethod}
+                onClick={checkout}
+              >
+                Checkout
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

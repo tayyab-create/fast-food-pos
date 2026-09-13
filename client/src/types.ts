@@ -30,6 +30,8 @@ export interface Discount {
   reason?: string;
 }
 
+export type PaymentMethod = 'cash' | 'card';
+
 export interface Order {
   _id: string;
   orderNumber?: number;
@@ -37,6 +39,7 @@ export interface Order {
   subtotal: number;
   discount?: Discount;
   total: number;
+  paymentMethod: PaymentMethod;
   urgent?: boolean;
   note?: string;
   status: OrderStatus;

@@ -12,6 +12,7 @@ module.exports = mongoose.model('Order', new mongoose.Schema({
   subtotal: { type: Number, required: true },
   discount: { type: { type: String, enum: ['percent', 'flat'] }, value: Number, reason: String },
   total: { type: Number, required: true },
+  paymentMethod: { type: String, enum: ['cash', 'card'], required: true },
   urgent: { type: Boolean, default: false },
   note: String,
   status: { type: String, enum: ['pending', 'preparing', 'ready', 'completed'], default: 'pending' },

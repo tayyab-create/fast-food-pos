@@ -345,7 +345,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   padding-bottom: 10px;
   flex-shrink: 0;
 }
-.order-options, .discount-block, .totals-block, .ledger-sheet > button.primary {
+.order-options, .discount-block, .payment-block, .totals-block, .checkout-row, .held-orders, .ledger-sheet > button.primary {
   flex-shrink: 0;
 }
 .ledger-sheet-header h2 { margin: 0; border: none; padding: 0; }
@@ -375,8 +375,19 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .ledger-line .qty-controls { display: inline-flex; align-items: center; gap: 6px; }
 .ledger-line .qty-controls button.icon { border: 1px solid var(--line-strong); width: 22px; height: 22px; padding: 0; line-height: 1; font-size: 0.85rem; }
 .ledger-line .qty-controls button.icon:hover { background: var(--forest-tint); color: var(--ink); border-color: var(--forest); }
+.ledger-line .qty-input {
+  width: 34px;
+  padding: 2px 4px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  -moz-appearance: textfield;
+}
+.ledger-line .qty-input::-webkit-inner-spin-button,
+.ledger-line .qty-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .ledger-line .name { flex: 1; font-size: 13px; }
 .ledger-line .line-total { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.ledger-line button.icon { font-size: 13px; padding: 2px 6px; flex-shrink: 0; }
 .ledger-line .note-input { width: 100%; margin-top: 6px; font-size: 12px; padding: 5px 8px; }
 
 /* Totals block: subtotal/discount rows, then an inverted final total row */
@@ -404,6 +415,50 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .discount-block .section-header { margin-top: 16px; }
 .discount-block .discount-value { display: flex; gap: 8px; margin-top: 8px; }
 .discount-block .discount-value input { flex: 1; }
+
+.payment-block .section-header { margin-top: 16px; }
+
+.checkout-row { display: flex; gap: 10px; margin-top: 14px; }
+
+.held-orders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.held-order-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.held-order-chip button.ghost { border: none; padding: 5px 8px; font-size: 12px; border-radius: 0; }
+.held-order-chip button.icon { padding: 5px 8px; font-size: 13px; }
+
+.order-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 12px;
+}
+.order-confirm-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--forest-tint);
+  color: var(--forest-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+.order-confirm h2 { border: none; padding: 0; margin: 0 0 4px; }
 
 /* Kitchen — 3-column board */
 .kds-toolbar {

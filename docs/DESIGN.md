@@ -26,7 +26,7 @@ client/                 Vite + React + TypeScript SPA
   src/
     main.tsx, App.tsx        React Router setup, NavBar
     pages/
-      Cashier.tsx             Menu grid + cart + checkout (/)
+      Cashier.tsx             Menu grid + cart + checkout, held orders, payment method (/)
       Kitchen.tsx             Order queue, polls every 3s (/kitchen)
       Reports.tsx             Daily stats + full order history, search by order #/item/discount reason (/reports)
       Menu.tsx                Menu CRUD (/menu)
@@ -64,6 +64,7 @@ client/                 Vite + React + TypeScript SPA
   subtotal: number,
   discount?: { type: 'percent' | 'flat', value: number, reason?: string },
   total: number,   // subtotal minus discount, clamped to >= 0
+  paymentMethod: 'cash' | 'card',
   urgent?: boolean,
   note?: string,   // order-wide note, distinct from per-item notes
   status: 'pending' | 'preparing' | 'ready' | 'completed',
@@ -82,7 +83,7 @@ client/                 Vite + React + TypeScript SPA
 | POST   | /api/menu/:id/image | multipart, field `image` (jpeg/png/webp, ≤5MB) | MenuItem |
 | DELETE | /api/menu/:id/image | —                                     | MenuItem               |
 | GET    | /api/orders       | ?status= (optional filter)              | Order[]                |
-| POST   | /api/orders       | { items: OrderItem[], discount?, urgent?, note? } | Order (201)      |
+| POST   | /api/orders       | { items: OrderItem[], paymentMethod, discount?, urgent?, note? } | Order (201) |
 | PATCH  | /api/orders/:id   | { status }                              | Order                  |
 | GET    | /api/reports/daily| —                                       | { orderCount, revenue, topItems: [{name, qty}] } |
 

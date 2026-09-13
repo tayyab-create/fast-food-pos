@@ -45,10 +45,15 @@ function buildItem(name, price, qty, comboItems, note) {
   };
 }
 
+const PAYMENT_METHODS = ['cash', 'card'];
+
 async function create(req, res) {
-  const { items: rawItems, discount, urgent, note } = req.body;
+  const { items: rawItems, discount, urgent, note, paymentMethod } = req.body;
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'Order must have at least one item' });
+  }
+  if (!PAYMENT_METHODS.includes(paymentMethod)) {
+    return res.status(400).json({ error: 'Payment method must be cash or card' });
   }
 
   const menu = await MenuItem.find();
@@ -84,7 +89,7 @@ async function create(req, res) {
     { upsert: true, returnDocument: 'after' }
   );
   const orderNumber = counter.seq;
-  const order = await Order.create({ items, subtotal, discount, total, orderNumber, urgent, note });
+  const order = await Order.create({ items, subtotal, discount, total, orderNumber, urgent, note, paymentMethod });
   res.status(201).json(order);
 }
 
