@@ -54,6 +54,7 @@ export function Menu() {
   const [removeImageFlag, setRemoveImageFlag] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string; price?: string; variants?: Record<number, string> }>({});
 
   function load() {
     return getMenu().then(setItems);
@@ -90,6 +91,7 @@ export function Menu() {
     setForm(EMPTY_FORM);
     resetImageState();
     setFormError(null);
+    setFieldErrors({});
     setMode('add');
   }
 
@@ -105,6 +107,7 @@ export function Menu() {
     });
     resetImageState(item.image);
     setFormError(null);
+    setFieldErrors({});
     setMode('edit');
   }
 
@@ -181,17 +184,27 @@ export function Menu() {
     }));
   }
 
+  function validateForm(name: string): boolean {
+    const errors: typeof fieldErrors = {};
+    if (!name) errors.name = 'Name is required.';
+    if (!form.category.trim()) errors.category = 'Category is required.';
+    if (!(Number(form.price) > 0)) errors.price = 'Must be a positive number.';
+    if (form.hasVariants) {
+      const variantErrors: Record<number, string> = {};
+      form.variants.forEach((v, i) => {
+        if (!v.name.trim()) variantErrors[i] = 'Name required.';
+        else if (!(v.price > 0)) variantErrors[i] = 'Positive price required.';
+      });
+      if (Object.keys(variantErrors).length) errors.variants = variantErrors;
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function save() {
     setFormError(null);
     const name = form.name.trim();
-    if (!name) return setFormError('Name is required.');
-    if (!(Number(form.price) > 0)) return setFormError('Price must be a positive number.');
-    if (form.hasVariants) {
-      for (const v of form.variants) {
-        if (!v.name.trim()) return setFormError('Each size needs a name.');
-        if (!(v.price > 0)) return setFormError(`Size "${v.name}" needs a positive price.`);
-      }
-    }
+    if (!validateForm(name)) return;
 
     if (mode === 'edit' && selected && selected.name !== name) {
       const affected = combosReferencing(selected.name);
@@ -309,20 +322,32 @@ export function Menu() {
             <div className="field-grid">
               <label>
                 Name
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input
+                  className={fieldErrors.name ? 'invalid' : undefined}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+                {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
               </label>
               <label>
                 Category
-                <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                <input
+                  className={fieldErrors.category ? 'invalid' : undefined}
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                />
+                {fieldErrors.category && <p className="field-error">{fieldErrors.category}</p>}
               </label>
               <label>
                 {form.hasVariants ? 'Base price' : form.isCombo ? 'Combo price' : 'Price'}
                 <input
                   type="number"
                   step="0.01"
+                  className={fieldErrors.price ? 'invalid' : undefined}
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                 />
+                {fieldErrors.price && <p className="field-error">{fieldErrors.price}</p>}
               </label>
             </div>
 
@@ -352,20 +377,25 @@ export function Menu() {
             {form.hasVariants && (
               <div className="variant-editor">
                 {form.variants.map((v, i) => (
-                  <div className="variant-editor-row" key={i}>
-                    <input
-                      placeholder="Size name (e.g. Large)"
-                      value={v.name}
-                      onChange={(e) => updateVariantRow(i, 'name', e.target.value)}
-                    />
-                    <input
-                      placeholder="Price"
-                      type="number"
-                      step="0.01"
-                      value={v.price || ''}
-                      onChange={(e) => updateVariantRow(i, 'price', e.target.value)}
-                    />
-                    <button className="remove-btn" onClick={() => removeVariantRow(i)} aria-label="Remove size">×</button>
+                  <div className="variant-editor-row-wrap" key={i}>
+                    <div className="variant-editor-row">
+                      <input
+                        placeholder="Size name (e.g. Large)"
+                        className={fieldErrors.variants?.[i] ? 'invalid' : undefined}
+                        value={v.name}
+                        onChange={(e) => updateVariantRow(i, 'name', e.target.value)}
+                      />
+                      <input
+                        placeholder="Price"
+                        type="number"
+                        step="0.01"
+                        className={fieldErrors.variants?.[i] ? 'invalid' : undefined}
+                        value={v.price || ''}
+                        onChange={(e) => updateVariantRow(i, 'price', e.target.value)}
+                      />
+                      <button className="remove-btn" onClick={() => removeVariantRow(i)} aria-label="Remove size">×</button>
+                    </div>
+                    {fieldErrors.variants?.[i] && <p className="field-error">{fieldErrors.variants[i]}</p>}
                   </div>
                 ))}
                 <button className="ghost" onClick={addVariantRow}>+ Add size</button>

@@ -573,6 +573,7 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 .variant-editor-row { display: flex; gap: 8px; align-items: center; }
 .variant-editor-row input:first-child { flex: 2; }
 .variant-editor-row input:nth-child(2) { flex: 1; }
+.variant-editor-row-wrap .field-error { margin-top: 2px; }
 
 .hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .combo-picker-list {
