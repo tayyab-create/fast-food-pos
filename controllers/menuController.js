@@ -9,19 +9,42 @@ async function list(req, res) {
   res.json(await MenuItem.find().sort({ category: 1, name: 1 }));
 }
 
+// Shared validation for create/update — returns an error string, or null if valid.
+// Fields are only checked when present, so update() can validate a partial payload.
+function validateFields({ name, price, category, variants }) {
+  if (name !== undefined && !String(name).trim()) return 'Name is required';
+  if (price !== undefined && !(Number(price) > 0)) return 'Price must be a positive number';
+  if (category !== undefined && !String(category).trim()) return 'Category is required';
+  if (variants) {
+    for (const v of variants) {
+      if (!v.name || !String(v.name).trim()) return 'Each size needs a name';
+      if (!(Number(v.price) > 0)) return `Size "${v.name}" needs a positive price`;
+    }
+  }
+  return null;
+}
+
 async function create(req, res) {
   const { name, price, category, variants, isCombo, comboItems } = req.body;
-  const item = await MenuItem.create({ name, price, category, variants, isCombo, comboItems });
+  const error = !name || price === undefined || !category
+    ? 'Name, price, and category are required'
+    : validateFields({ name, price, category, variants });
+  if (error) return res.status(400).json({ error });
+  const item = await MenuItem.create({ name: String(name).trim(), price, category: String(category).trim(), variants, isCombo, comboItems });
   res.status(201).json(item);
 }
 
 const UPDATABLE_FIELDS = ['name', 'price', 'category', 'variants', 'isCombo', 'comboItems'];
 
 async function update(req, res) {
+  const error = validateFields(req.body);
+  if (error) return res.status(400).json({ error });
   const updates = {};
   for (const field of UPDATABLE_FIELDS) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   }
+  if (updates.name !== undefined) updates.name = String(updates.name).trim();
+  if (updates.category !== undefined) updates.category = String(updates.category).trim();
   const item = await MenuItem.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
   if (!item) return res.status(404).json({ error: 'Menu item not found' });
   res.json(item);

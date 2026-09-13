@@ -53,6 +53,7 @@ export function Menu() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [removeImageFlag, setRemoveImageFlag] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   function load() {
     return getMenu().then(setItems);
@@ -63,6 +64,14 @@ export function Menu() {
   }, []);
 
   const selected = items.find((i) => i._id === selectedId) ?? null;
+
+  // Combo entries reference items by name (or "Name (Variant)"), so renaming/deleting
+  // an item can silently orphan a combo's reference — warn using already-loaded items.
+  function combosReferencing(itemName: string): string[] {
+    return items
+      .filter((i) => i.isCombo && i.comboItems?.some((entry) => entry === itemName || entry.startsWith(`${itemName} (`)))
+      .map((i) => i.name);
+  }
 
   function selectItem(item: MenuItem) {
     setSelectedId(item._id);
@@ -80,6 +89,7 @@ export function Menu() {
     setSelectedId(null);
     setForm(EMPTY_FORM);
     resetImageState();
+    setFormError(null);
     setMode('add');
   }
 
@@ -94,6 +104,7 @@ export function Menu() {
       comboItems: item.comboItems ?? [],
     });
     resetImageState(item.image);
+    setFormError(null);
     setMode('edit');
   }
 
@@ -171,32 +182,60 @@ export function Menu() {
   }
 
   async function save() {
-    if (!form.name || !form.price) return;
+    setFormError(null);
+    const name = form.name.trim();
+    if (!name) return setFormError('Name is required.');
+    if (!(Number(form.price) > 0)) return setFormError('Price must be a positive number.');
+    if (form.hasVariants) {
+      for (const v of form.variants) {
+        if (!v.name.trim()) return setFormError('Each size needs a name.');
+        if (!(v.price > 0)) return setFormError(`Size "${v.name}" needs a positive price.`);
+      }
+    }
+
+    if (mode === 'edit' && selected && selected.name !== name) {
+      const affected = combosReferencing(selected.name);
+      if (affected.length) {
+        const proceed = window.confirm(
+          `"${selected.name}" is used in: ${affected.join(', ')}. Renaming won't update those combos — continue?`
+        );
+        if (!proceed) return;
+      }
+    }
+
     const payload = {
-      name: form.name,
+      name,
       price: Number(form.price),
       category: form.category || 'Other',
       variants: form.hasVariants ? form.variants.filter((v) => v.name) : [],
       isCombo: form.isCombo,
       comboItems: form.isCombo ? form.comboItems : [],
     };
-    const saved = mode === 'edit' && selectedId
-      ? await updateMenuItem(selectedId, payload)
-      : await createMenuItem(payload);
+    try {
+      const saved = mode === 'edit' && selectedId
+        ? await updateMenuItem(selectedId, payload)
+        : await createMenuItem(payload);
 
-    if (imageFile) {
-      await uploadMenuItemImage(saved._id, imageFile);
-    } else if (removeImageFlag) {
-      await deleteMenuItemImage(saved._id);
+      if (imageFile) {
+        await uploadMenuItemImage(saved._id, imageFile);
+      } else if (removeImageFlag) {
+        await deleteMenuItemImage(saved._id);
+      }
+
+      await load();
+      setSelectedId(saved._id);
+      setMode('view');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save item.');
     }
-
-    await load();
-    setSelectedId(saved._id);
-    setMode('view');
   }
 
   async function confirmDelete(item: MenuItem) {
-    if (!window.confirm(`Delete "${item.name}"? This can't be undone.`)) return;
+    const affected = combosReferencing(item.name);
+    const message = affected.length
+      ? `"${item.name}" is used in: ${affected.join(', ')}. Deleting it won't update those combos. Delete anyway?`
+      : `Delete "${item.name}"? This can't be undone.`;
+    if (!window.confirm(message)) return;
     await deleteMenuItem(item._id);
     if (selectedId === item._id) {
       setSelectedId(null);
@@ -380,6 +419,7 @@ export function Menu() {
               </div>
             )}
 
+            {formError && <p className="field-error">{formError}</p>}
             <div className="form-actions">
               <button className="primary" onClick={save}>Save</button>
               <button className="ghost" onClick={cancelForm}>Cancel</button>
