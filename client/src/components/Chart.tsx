@@ -43,9 +43,15 @@ function niceStep(peak: number): number {
 
 /** Bars or a line over the same points, on a ruled grid with a labelled
  * value axis. Values are written on the chart wherever there's room. The
- * style toggle sits in the corner and is remembered per chart. */
+ * style toggle sits in the corner and is remembered per chart.
+ *
+ * Hover uses a custom tooltip (never the `title` attribute — the browser's
+ * native tooltip has a ~1s delay before it appears), positioned in the same
+ * percentage coordinate space as the bars/points so it never has to measure
+ * the DOM. */
 export function Chart({ points, name, emptyMessage, format = (v) => String(v), axisFormat = format }: ChartProps) {
   const [style, setStyleState] = useState<Style>(() => readStyle(name));
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const peak = Math.max(0, ...points.map((p) => p.value));
   if (peak === 0) return <p className="hint">{emptyMessage}</p>;
 
@@ -71,6 +77,12 @@ export function Chart({ points, name, emptyMessage, format = (v) => String(v), a
   const x = (i: number) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W);
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${(H - (p.value / top) * H).toFixed(2)}`).join(' ');
 
+  const hovered = hoverIndex !== null ? points[hoverIndex] : null;
+  // Anchor point for the tooltip, in the plot's own percentage coordinates.
+  const hoverPos = hoverIndex !== null
+    ? { left: style === 'bars' ? ((hoverIndex + 0.5) / points.length) * 100 : x(hoverIndex), bottom: pctOf(points[hoverIndex].value) }
+    : null;
+
   return (
     <figure className={`chart ${style}`} aria-label={name}>
       <div className="chart-style" role="group" aria-label="Chart style">
@@ -88,7 +100,7 @@ export function Chart({ points, name, emptyMessage, format = (v) => String(v), a
         ))}
       </div>
 
-      <div className="chart-plot" style={{ height: H }}>
+      <div className="chart-plot" style={{ height: H }} onMouseLeave={() => setHoverIndex(null)}>
         <div className="chart-grid" aria-hidden="true">
           {gridLines.map((v) => <span key={v} style={{ bottom: `${pctOf(v)}%` }} />)}
         </div>
@@ -96,7 +108,7 @@ export function Chart({ points, name, emptyMessage, format = (v) => String(v), a
         {style === 'bars' ? (
           <ol className="chart-bars">
             {points.map((p, i) => (
-              <li key={i} title={p.title}>
+              <li key={i} onMouseEnter={() => setHoverIndex(i)}>
                 <span className="chart-bar" style={{ height: `${pctOf(p.value)}%` }}>
                   {showValue(p, i) && <span className="chart-value">{format(p.value)}</span>}
                 </span>
@@ -110,11 +122,22 @@ export function Chart({ points, name, emptyMessage, format = (v) => String(v), a
               <path d={linePath} className="chart-path" vectorEffect="non-scaling-stroke" />
             </svg>
             {points.map((p, i) => (
-              <span key={i} className="chart-dot" style={{ left: `${x(i)}%`, bottom: `${pctOf(p.value)}%` }} title={p.title}>
+              <span
+                key={i}
+                className="chart-dot"
+                style={{ left: `${x(i)}%`, bottom: `${pctOf(p.value)}%` }}
+                onMouseEnter={() => setHoverIndex(i)}
+              >
                 {showValue(p, i) && <span className="chart-value">{format(p.value)}</span>}
               </span>
             ))}
           </>
+        )}
+
+        {hovered && hoverPos && (
+          <span className="chart-tooltip" role="tooltip" style={{ left: `${hoverPos.left}%`, bottom: `${hoverPos.bottom}%` }}>
+            {hovered.title}
+          </span>
         )}
       </div>
 
