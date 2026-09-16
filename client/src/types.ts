@@ -27,6 +27,15 @@ export interface MenuItem {
   tags?: string[];
 }
 
+export type LabelKind = 'category' | 'tag';
+
+/** A category or tag registered on its own, with how many menu items use it. */
+export interface Label {
+  _id: string;
+  name: string;
+  itemCount: number;
+}
+
 export interface OrderItem {
   name: string;
   price: number;

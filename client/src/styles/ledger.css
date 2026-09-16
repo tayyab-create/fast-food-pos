@@ -1415,47 +1415,52 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 .tag-input .filter-chip { background: var(--paper); }
 .tag-input .combobox-list { top: calc(100% + 4px); left: 0; }
 
-/* Reports: charts */
+/* Reports: charts — ruled grid, value axis, bars capped to a readable width */
 .stats-row { flex-wrap: wrap; }
 .stat { flex: 1 1 140px; }
-.chart { position: relative; margin-bottom: 26px; padding-top: 18px; }
-.chart-style { position: absolute; top: -4px; right: 0; display: flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
-.chart-style button { border: none; border-radius: 0; background: var(--surface); padding: 3px 7px; color: var(--muted); line-height: 0; }
+.chart { position: relative; margin: 0 0 28px; padding: 22px 0 0 52px; }
+.chart-style { position: absolute; top: -6px; right: 0; display: flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.chart-style button { border: none; border-radius: 0; background: none; padding: 3px 7px; color: var(--muted); line-height: 0; }
 .chart-style button + button { border-left: 1px solid var(--line-strong); }
 .chart-style button:hover { background: var(--paper); color: var(--ink); }
 .chart-style button.active { background: var(--forest-tint); color: var(--forest-dark); }
-.chart-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 140px;
-  margin: 0;
-  padding: 0 0 16px;
-  list-style: none;
-  border-bottom: 1px solid var(--line-strong);
+.chart-axis { position: absolute; left: 0; top: 22px; width: 44px; height: 160px; }
+.chart-axis span { position: absolute; right: 0; transform: translateY(50%); font-family: var(--font-num); font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+.chart-plot { position: relative; border-bottom: 1px solid var(--line-strong); }
+.chart-grid { position: absolute; inset: 0; pointer-events: none; }
+.chart-grid span { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); }
+.chart-grid span:first-child { border-top: none; }
+.chart-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.chart-bars li { flex: 1; display: flex; justify-content: center; align-items: flex-end; height: 100%; min-width: 0; }
+.chart-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 44px;
+  background: var(--forest);
+  border-radius: 3px 3px 0 0;
+  transition: height 220ms ease-out, background-color 0.1s;
 }
-.chart-bars li { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; position: relative; min-width: 0; }
-.chart-bar { display: block; width: 100%; background: var(--forest); border-radius: 2px 2px 0 0; min-height: 0; transition: height 220ms ease-out; }
 .chart-bars li:hover .chart-bar { background: var(--forest-dark); }
-.chart-label { position: absolute; bottom: -16px; font-family: var(--font-num); font-size: 9.5px; color: var(--muted); white-space: nowrap; }
-.chart-value { font-family: var(--font-num); font-size: 9.5px; color: var(--ink-soft); margin-bottom: 3px; white-space: nowrap; }
-.chart-line { display: block; width: 100%; height: 140px; border-bottom: 1px solid var(--line-strong); }
+.chart-bar .chart-value { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 3px; }
+.chart-value { font-family: var(--font-num); font-size: 9.5px; color: var(--ink-soft); white-space: nowrap; }
+.chart-line { position: absolute; inset: 0; width: 100%; height: 100%; }
 .chart-area { fill: var(--forest-tint); stroke: none; }
 .chart-path { fill: none; stroke: var(--forest); stroke-width: 1.5; }
-.chart-overlay { position: absolute; left: 0; right: 0; top: 18px; height: 140px; pointer-events: none; }
 .chart-dot {
   position: absolute;
   width: 7px;
   height: 7px;
-  margin: -3.5px 0 0 -3.5px;
+  margin: 0 0 -3.5px -3.5px;
   border-radius: 50%;
   background: var(--surface);
   border: 1.5px solid var(--forest);
-  pointer-events: auto;
 }
-.chart-dot .chart-value { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); margin: 0; }
-.chart-labels { position: relative; height: 16px; }
-.chart-labels span { position: absolute; transform: translateX(-50%); font-family: var(--font-num); font-size: 9.5px; color: var(--muted); white-space: nowrap; top: 2px; }
+.chart-dot:hover { background: var(--forest); }
+.chart-dot .chart-value { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); }
+.chart-labels { position: relative; display: flex; gap: 4px; height: 16px; margin-top: 3px; }
+.chart-label-slot { flex: 1; min-width: 0; text-align: center; font-family: var(--font-num); font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chart-label-point { position: absolute; top: 0; transform: translateX(-50%); font-family: var(--font-num); font-size: 9.5px; color: var(--muted); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .chart-bar { transition: none; } }
 
 /* Circular progress — indeterminate ring in the current text colour */
@@ -1684,3 +1689,15 @@ button:not(:disabled):active { transform: translateY(1px); }
 .date-picker-years button:hover { background: var(--forest-tint); }
 .date-picker-years button.selected { background: var(--forest-dark); color: white; }
 .date-picker-years button:disabled { color: var(--line-strong); cursor: not-allowed; background: none; }
+
+/* Settings */
+.settings-page { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 32px; align-items: start; }
+.settings-section .hint { margin: 4px 0 12px; }
+.settings-add { display: flex; gap: 8px; }
+.settings-add input { width: 200px; }
+.settings-rename { width: 100%; padding: 4px 8px; font-size: 13px; }
+.settings-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.settings-actions button { padding: 4px 10px; font-size: 12.5px; }
+
+.chart-label-point:first-child { transform: none; }
+.chart-label-point:last-child { transform: translateX(-100%); }

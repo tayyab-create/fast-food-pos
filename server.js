@@ -6,6 +6,7 @@ const path = require('path');
 const menuRouter = require('./routes/menu');
 const ordersRouter = require('./routes/orders');
 const reportsRouter = require('./routes/reports');
+const labelsRouter = require('./routes/labels');
 
 const app = express();
 app.use(express.json());
@@ -17,6 +18,7 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fastfood_po
 app.use('/api/menu', menuRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/labels', labelsRouter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

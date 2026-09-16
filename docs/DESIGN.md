@@ -13,14 +13,17 @@ routes/                 Express Routers — HTTP verbs/paths only, no business l
   menu.js               /api/menu
   orders.js             /api/orders
   reports.js            /api/reports
+  labels.js             /api/labels/:kind — categories and tags as records of their own
 controllers/            Business logic + Mongoose queries, one per resource
   menuController.js      Also handles image upload/removal (sharp resize + compress)
   ordersController.js
   reportsController.js
+  labelsController.js    Category/tag list, add, rename (propagates to items), delete
 models/                 Mongoose schemas
   MenuItem.js
   Order.js
   Counter.js             Atomic sequence counters (orderNumber)
+  Label.js               { kind: 'category' | 'tag', name } — unique per kind; outlives the items that use it
 uploads/                Compressed product images, served at /uploads (gitignored, runtime-only)
 seed.js                 Populates sample menu items
 client/                 Vite + React + TypeScript SPA
@@ -31,6 +34,7 @@ client/                 Vite + React + TypeScript SPA
       Kitchen.tsx             Order queue, polls every 3s (/kitchen)
       Reports.tsx             Range-scoped stats + order history, search by order #/item/discount reason (/reports)
       Menu.tsx                Menu CRUD (/menu)
+      Settings.tsx            Categories and tags: add, rename in place, delete (/settings)
     components/
       LedgerTable.tsx         Shared ruled-row table primitive
       OrderDetailModal.tsx    Shared order detail popup (Cashier checkout confirmation, Reports order history row click)
@@ -50,7 +54,7 @@ client/                 Vite + React + TypeScript SPA
       useFlipUp.ts            Opens a popup upward when it wouldn't fit below (every dropdown, combobox, tag list, calendar)
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
-      menu.ts, orders.ts, reports.ts   Typed functions per resource
+      menu.ts, orders.ts, reports.ts, labels.ts   Typed functions per resource
     types.ts                  Shared TS interfaces (mirror backend shapes)
     comboFormat.ts             Resolves combo entries against the loaded catalog: display labels
                                ("2× Fries (Large)"), unit prices, and the bought-separately sum.
@@ -80,6 +84,20 @@ client/                 Vite + React + TypeScript SPA
   tags?: string[],       // ≤3 labels of ≤16 chars ("New", "Spicy") shown as chips on the Cashier tile
 }
 ```
+
+### Label
+```
+{ _id, kind: 'category' | 'tag', name: string }   // unique per kind
+```
+Categories and tags are records in their own right, not just strings on
+items: saving a menu item registers any category or tag it uses (upsert),
+and deleting the last item that used one leaves the label in place. The
+Settings page lists them with usage counts and lets you add, rename (the
+new name is written onto every item that had the old one) or delete
+(items in a deleted category move to "Other", which can't itself be
+deleted; a deleted tag is pulled off every item). The Menu form's category
+and tag suggestions come from these records, so an unused label can still
+be picked.
 
 ### Order
 ```
@@ -129,6 +147,10 @@ client/                 Vite + React + TypeScript SPA
 | POST   | /api/orders       | { items: OrderItem[], paymentMethod, orderType?, amountTendered?, discount?, urgent?, note? } | Order (201) |
 | PATCH  | /api/orders/:id   | { status, reason? } — `reason` required (≤200 chars) when status is `voided` | Order |
 | POST   | /api/menu/:id/image-url | { url } (public http(s) image, ≤5MB; server downloads it and stores it exactly like an upload — loopback/LAN hosts and redirects are refused) | MenuItem |
+| GET    | /api/labels/:kind | `kind` = category \| tag                | [{ _id, name, itemCount }] sorted by name |
+| POST   | /api/labels/:kind | { name } (≤40 chars for a category, ≤16 for a tag; 409 if it exists) | Label (201) |
+| PUT    | /api/labels/:kind/:id | { name } — renames and updates every item using it | Label |
+| DELETE | /api/labels/:kind/:id | — (category: items move to "Other"; tag: pulled off items) | 204 |
 | GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], items: [{name, qty, revenue, orders, orderShare}], byPaymentMethod, byOrderType, byHour[24], byWeekday[7], byDay: [{date, count, revenue}], cashTendered, changeGiven, comboShare, discountsByReason: [{reason, count, amount}], voids: [{_id, orderNumber, total, reason, at}] } — voided orders are excluded from every revenue figure and counted separately; the client fetches the same-length range before `from` a second time to show period-over-period deltas |
 | GET    | /api/reports/popular | —                                    | string[] — names of the 5 best-selling items over the last 7 days (the Cashier's "Popular" badge) |
 
@@ -200,6 +222,10 @@ stays about architecture and data shapes.
     `DateRangePicker` defaulting to all time; all shown as removable
     `ActiveFilters` chips) and a CSV download of the filtered rows.
     Clicking a row opens `OrderDetailModal`.
+- **Settings (`/settings`)**: two ledger tables, Categories and Tags, each
+  with an add field, a usage count per row ("unused" when zero), Rename
+  (edits in place; Enter saves, Escape cancels) and Delete (via
+  `ConfirmModal`, stating what happens to the items). See the Label model.
 - **Menu (`/menu`)**: a search bar + multi-select Category, Status
   (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind
   (Single/Sizes/Combo) and Tag filters, with the active ones listed as
@@ -317,10 +343,13 @@ first.
   placeholder?, disabled? }`. Used for menu-item tags in both the edit form
   and the detail view.
 - **`Chart`** (`components/Chart.tsx`) — bars or a line over the same
-  `{ label, value, title }[]` points, 140px tall, with values written on the
-  chart wherever there's room (every bar up to 16 points, thinned beyond
-  that, the peak always). A two-button style toggle sits in the chart's
-  corner and is remembered per chart in localStorage. Used by Reports for
+  `{ label, value, title }[]` points on a ruled grid: four horizontal
+  hairlines at "nice" steps (1 / 2 / 2.5 / 5 × 10ⁿ) with a labelled value
+  axis on the left, 160px tall, bars capped at a readable width and centred
+  in their slot, values written on the chart wherever there's room (every
+  bar up to 16 points, thinned beyond that, the peak always). A two-button
+  style toggle sits in the corner and is remembered per chart in
+  localStorage. Used by Reports for
   orders by hour, revenue by day and revenue by day of week.
 - **`downloadCsv()`** (`csv.ts`) — builds a CSV from rows (quoting as
   needed, UTF-8 BOM so Excel keeps × and —) and triggers a download. All

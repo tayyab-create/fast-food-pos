@@ -8,6 +8,7 @@ import {
   updateMenuItem,
   uploadMenuItemImage,
 } from '../api/menu';
+import { getLabels } from '../api/labels';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
@@ -81,6 +82,8 @@ function errorMessage(err: unknown, fallback: string): string {
 export function Menu() {
   const toast = useToast();
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [categoryNames, setCategoryNames] = useState<string[]>([]);
+  const [tagNames, setTagNames] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -106,7 +109,10 @@ export function Menu() {
 
   async function load() {
     try {
-      setItems(await getMenu());
+      const [menu, categories, tags] = await Promise.all([getMenu(), getLabels('category'), getLabels('tag')]);
+      setItems(menu);
+      setCategoryNames(categories.map((c) => c.name));
+      setTagNames(tags.map((t) => t.name));
       setListError(null);
     } catch (err) {
       setListError(errorMessage(err, 'Could not load the menu.'));
@@ -374,8 +380,9 @@ export function Menu() {
     await load();
   }
 
-  const distinctCategories = [...new Set(items.map((i) => i.category))];
-  const distinctTags = [...new Set(items.flatMap((i) => i.tags ?? []))].sort();
+  // Registered labels first (Settings), plus anything an item carries that isn't registered yet.
+  const distinctCategories = [...new Set([...categoryNames, ...items.map((i) => i.category)])];
+  const distinctTags = [...new Set([...tagNames, ...items.flatMap((i) => i.tags ?? [])])].sort();
   const filteredItems = items
     .filter((i) => categoryFilters.length === 0 || categoryFilters.includes(i.category))
     .filter((i) => flagFilters.length === 0 || flagsOf(i).some((f) => flagFilters.includes(f)))

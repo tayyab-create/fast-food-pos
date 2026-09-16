@@ -26,6 +26,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const money = (n: number) => `$${n.toFixed(2)}`;
+/** Axis steps are round dollars: $2,000 rather than $2000.00. */
+const axisMoney = (n: number) => `${Math.round(n).toLocaleString()}`;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 /** The span of equal length immediately before `range`, or null when the
@@ -258,6 +260,7 @@ export function Reports() {
                     name="Revenue by day"
                     emptyMessage={`No sales ${label}.`}
                     format={money}
+                    axisFormat={axisMoney}
                     points={days.map((d, i) => ({
                       label: i === 0 || i === days.length - 1 || i % Math.ceil(days.length / 6) === 0 ? formatDisplay(d.date, false) : '',
                       value: d.revenue,
@@ -273,6 +276,7 @@ export function Reports() {
                     name="Revenue by day of week"
                     emptyMessage={`No sales ${label}.`}
                     format={money}
+                    axisFormat={axisMoney}
                     points={report.byWeekday.map((d, i) => ({
                       label: WEEKDAYS[i],
                       value: d.revenue,

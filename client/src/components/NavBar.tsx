@@ -9,6 +9,7 @@ export function NavBar() {
         <NavLink to="/kitchen" className={({ isActive }) => (isActive ? 'active' : '')}>Kitchen</NavLink>
         <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>Reports</NavLink>
         <NavLink to="/menu" className={({ isActive }) => (isActive ? 'active' : '')}>Menu</NavLink>
+        <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>Settings</NavLink>
       </nav>
     </header>
   );

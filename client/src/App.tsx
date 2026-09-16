@@ -4,6 +4,7 @@ import { Cashier } from './pages/Cashier';
 import { Kitchen } from './pages/Kitchen';
 import { Reports } from './pages/Reports';
 import { Menu } from './pages/Menu';
+import { Settings } from './pages/Settings';
 
 function NotFound() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/kitchen" element={<Kitchen />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/menu" element={<Menu />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

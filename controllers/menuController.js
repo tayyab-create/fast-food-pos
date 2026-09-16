@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const sharp = require('sharp');
 const MenuItem = require('../models/MenuItem');
 const { isMoney } = require('../lib/money');
+const labels = require('./labelsController');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 const MAX_TAGS = 3;
@@ -65,6 +66,7 @@ async function create(req, res) {
     ? 'Name, price, and category are required'
     : validateFields({ name, price, category, variants, comboItems, tags }) || await comboItemsError(comboItems);
   if (error) return res.status(400).json({ error });
+  await Promise.all([labels.ensure('category', [category]), labels.ensure('tag', tags ?? [])]);
   const item = await MenuItem.create({
     name: String(name).trim(),
     price,
@@ -91,6 +93,10 @@ async function update(req, res) {
   if (updates.name !== undefined) updates.name = String(updates.name).trim();
   if (updates.category !== undefined) updates.category = String(updates.category).trim();
   if (updates.tags !== undefined) updates.tags = updates.tags.map((t) => t.trim());
+  await Promise.all([
+    updates.category !== undefined ? labels.ensure('category', [updates.category]) : null,
+    updates.tags !== undefined ? labels.ensure('tag', updates.tags) : null,
+  ]);
   const item = await MenuItem.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
   if (!item) return res.status(404).json({ error: 'Menu item not found' });
   res.json(item);
