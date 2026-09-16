@@ -64,7 +64,40 @@ export function Reports() {
   const filtersActive = statusFilters.length > 0 || typeFilters.length > 0;
 
   if (loadError) return <p className="field-error" role="alert">{loadError}</p>;
-  if (!report) return <p>Loading…</p>;
+  if (!report) {
+    return (
+      <div className="reports-page" aria-busy="true">
+        <div className="list-header">
+          <div className="section-header">Summary</div>
+          <DateRangePicker value={range} onChange={setRange} max={TODAY} placeholder="All time" />
+        </div>
+        <div className="stats-row">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div className="stat" key={i} aria-hidden="true">
+              <span className="skeleton skeleton-stat" />
+              <span className="skeleton" style={{ width: '60%', marginTop: '8px' }} />
+            </div>
+          ))}
+        </div>
+        <div className="reports-columns">
+          <div className="reports-col reports-col-narrow">
+            <div className="section-header">Top items</div>
+            <LedgerTable columns={[{ header: 'Item', render: () => null }, { header: 'Qty', numeric: true, render: () => null }]} rows={[]} rowKey={() => ''} loading />
+          </div>
+          <div className="reports-col reports-col-wide">
+            <div className="section-header">Order history</div>
+            <LedgerTable
+              columns={['Order #', 'Time', 'Items', 'Discount', 'Type', 'Status', 'Total'].map((header) => ({ header, numeric: header === 'Total', render: () => null }))}
+              rows={[]}
+              rowKey={() => ''}
+              loading
+              pageSize={10}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const topItems = report.topItems.slice(0, 10);
   const dayLabel = range.from === TODAY && range.to === TODAY ? 'today' : formatRange(range).toLowerCase() || 'all time';

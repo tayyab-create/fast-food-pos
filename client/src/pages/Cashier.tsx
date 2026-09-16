@@ -62,6 +62,7 @@ export function Cashier() {
   const toast = useToast();
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [menuLoaded, setMenuLoaded] = useState(false);
   const [popular, setPopular] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
   const [search, setSearch] = useState('');
@@ -82,7 +83,10 @@ export function Cashier() {
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    getMenu().then(setMenu).catch((err) => setMenuError(err instanceof Error ? err.message : 'Could not load the menu.'));
+    getMenu()
+      .then(setMenu)
+      .catch((err) => setMenuError(err instanceof Error ? err.message : 'Could not load the menu.'))
+      .finally(() => setMenuLoaded(true));
     // Purely decorative — a failure just means no "Popular" badges.
     getPopularItems().then(setPopular).catch(() => {});
   }, []);
@@ -265,6 +269,13 @@ export function Cashier() {
         {menuError && <p className="field-error" role="alert">{menuError}</p>}
 
         <div className="item-grid">
+          {!menuLoaded && Array.from({ length: 8 }, (_, i) => (
+            <div className="item-tile skeleton-tile" key={i} aria-hidden="true">
+              <span className="skeleton skeleton-image" />
+              <span className="skeleton" style={{ width: `${50 + ((i * 23) % 40)}%` }} />
+              <span className="skeleton" style={{ width: '36%', alignSelf: 'flex-end', marginTop: 'auto' }} />
+            </div>
+          ))}
           {visibleItems.map((item) => {
             const comboSeparateTotal = item.isCombo && item.comboItems?.length
               ? comboItemsTotal(item.comboItems, menu)

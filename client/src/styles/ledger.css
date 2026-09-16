@@ -1499,3 +1499,37 @@ button .spinner { margin-right: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .toast, .toast.leaving { animation-duration: 1ms; }
 }
+
+/* Skeletons — content-shaped placeholders so nothing jumps when data lands */
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--line) 0%, #eef1ec 40%, var(--line) 80%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.skeleton-image { width: 100%; aspect-ratio: 4 / 3; height: auto; border-radius: var(--radius); }
+.skeleton-stat { height: 30px; width: 45%; }
+.skeleton-button { height: 34px; width: 100%; margin-top: 6px; border-radius: var(--radius); }
+.skeleton-tile { pointer-events: none; }
+.skeleton-tile:hover { border-color: var(--line); background: var(--surface); }
+.skeleton-ticket { display: flex; flex-direction: column; gap: 10px; }
+table.ledger td .skeleton { margin: 3px 0; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Kitchen: a faint dot beside each column title, brightening while a refresh is in flight */
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  vertical-align: 1px;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.live-dot.active { background: var(--forest); box-shadow: 0 0 0 3px var(--forest-tint); }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--line); }
+}

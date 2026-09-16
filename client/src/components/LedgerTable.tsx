@@ -17,6 +17,8 @@ interface LedgerTableProps<T> {
   onRowClick?: (row: T) => void;
   isRowSelected?: (row: T) => boolean;
   emptyMessage?: string;
+  /** Renders placeholder rows in place of data (keeps the layout still while loading). */
+  loading?: boolean;
   /** Enables pagination at this many rows per page. Omit to show all rows. */
   pageSize?: number;
   /** Lets the user pick the page size from this list (plus a "Custom" option). Requires pageSize. */
@@ -34,6 +36,7 @@ export function LedgerTable<T>({
   onRowClick,
   isRowSelected,
   emptyMessage,
+  loading,
   pageSize: initialPageSize,
   pageSizeOptions,
 }: LedgerTableProps<T>) {
@@ -98,7 +101,17 @@ export function LedgerTable<T>({
         </tr>
       </thead>
       <tbody>
-        {pageRows.length === 0 ? (
+        {loading ? (
+          Array.from({ length: Math.min(initialPageSize ?? 5, 5) }, (_, i) => (
+            <tr key={i} aria-hidden="true">
+              {columns.map((col) => (
+                <td key={col.header} className={col.numeric ? 'num' : undefined}>
+                  <span className="skeleton" style={{ width: col.numeric ? '48px' : `${55 + ((i * 17 + col.header.length * 7) % 40)}%` }} />
+                </td>
+              ))}
+            </tr>
+          ))
+        ) : pageRows.length === 0 ? (
           <tr>
             <td colSpan={columns.length}>{emptyMessage ?? 'Nothing here yet.'}</td>
           </tr>

@@ -100,6 +100,7 @@ export function Menu() {
   const [dragOver, setDragOver] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string; price?: string; variants?: Record<number, string> }>({});
 
   async function load() {
@@ -108,6 +109,8 @@ export function Menu() {
       setListError(null);
     } catch (err) {
       setListError(errorMessage(err, 'Could not load the menu.'));
+    } finally {
+      setLoaded(true);
     }
   }
 
@@ -459,6 +462,7 @@ export function Menu() {
             { header: 'Details', render: (i: MenuItem) => <span className="clamp-2">{describe(i)}</span>, sortValue: kindOf },
           ]}
           rows={filteredItems}
+          loading={!loaded}
           rowKey={(i) => i._id}
           onRowClick={selectItem}
           isRowSelected={(i) => i._id === selectedId}

@@ -61,6 +61,8 @@ function errorMessage(err: unknown, fallback: string): string {
 export function Kitchen() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Polling runs every 3s; report a failure once and stay quiet until it recovers.
   const pollFailed = useRef(false);
   const [search, setSearch] = useState('');
@@ -74,6 +76,7 @@ export function Kitchen() {
   async function load() {
     if (inFlight.current) return;
     inFlight.current = true;
+    setRefreshing(true);
     try {
       const all = await getOrders();
       setOrders(all.filter((o) => o.status !== 'completed' && o.status !== 'voided'));
@@ -84,6 +87,8 @@ export function Kitchen() {
       pollFailed.current = true;
     } finally {
       inFlight.current = false;
+      setRefreshing(false);
+      setLoaded(true);
     }
   }
 
@@ -183,11 +188,22 @@ export function Kitchen() {
           return (
             <div className="kds-column" key={col.status}>
               <div className="kds-column-header">
-                <span>{col.label}</span>
-                <span className="count">{columnOrders.length}</span>
+                <span>
+                  {col.label}
+                  <span className={`live-dot${refreshing ? ' active' : ''}`} title="Refreshes every 3 seconds" aria-hidden="true" />
+                </span>
+                <span className="count">{loaded ? columnOrders.length : ''}</span>
               </div>
               <div className="kds-tickets">
-                {columnOrders.length === 0 && (
+                {!loaded && Array.from({ length: 2 }, (_, i) => (
+                  <div className="ticket skeleton-ticket" key={i} aria-hidden="true">
+                    <span className="skeleton" style={{ width: '40%' }} />
+                    <span className="skeleton" style={{ width: '70%' }} />
+                    <span className="skeleton" style={{ width: '55%' }} />
+                    <span className="skeleton skeleton-button" />
+                  </div>
+                ))}
+                {loaded && columnOrders.length === 0 && (
                   <p className="kds-empty">{query ? 'No matching orders.' : 'No orders.'}</p>
                 )}
                 {columnOrders.map((o) => {

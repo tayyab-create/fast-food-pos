@@ -125,6 +125,12 @@ numerals) to stand apart from the mono figures around it.
   dark toast at the bottom (green tick or red cross, three seconds, Undo
   where the action is reversible). Field mistakes stay inline under the
   field; page-level load failures stay inline where the content would be.
+- **Loading**: a first load shows `.skeleton` placeholders in the shape of
+  the content (tile grid, table rows via `LedgerTable loading`, stat cards,
+  kitchen tickets), never a bare "Loading…" or an empty page that jumps when
+  data lands. A background refresh keeps what's on screen; the Kitchen shows
+  only a faint dot beside each column title that brightens while a fetch is
+  in flight.
 - **Progress**: anything that waits on the network shows the `.spinner`
   ring (2px, current text colour, `.large` for veils) next to a verb in
   progress — "Saving…", "Placing order…", "Loading image…" — and the button
