@@ -1,0 +1,5 @@
+# Store every text file with LF so edits never show up as whole-file line-ending diffs.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
