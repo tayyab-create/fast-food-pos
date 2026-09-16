@@ -4,7 +4,8 @@ import { createOrder } from '../api/orders';
 import { getPopularItems } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { isMoneyInput, roundMoney } from '../money';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
+import { ItemImage } from '../components/ItemImage';
 import { Modal } from '../components/Modal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { PayModal } from '../components/PayModal';
@@ -289,7 +290,7 @@ export function Cashier() {
                 onClick={() => tapTile(item)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && tapTile(item)}
               >
-                {item.image && <img className="item-tile-image" src={item.image} alt="" />}
+                {item.image && <ItemImage className="item-tile-image" src={item.image} />}
                 {item.pinned && (
                   <span className="tile-pin" title="Pinned">
                     <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -426,7 +427,7 @@ export function Cashier() {
             <button type="button" className="ghost more-toggle" onClick={() => setShowMore(true)}>
               ⋯ More {(discountType || orderNote) && <span className="more-dot" aria-label="options set" />}
             </button>
-            <button type="button" className="ghost" aria-pressed={urgent} onClick={() => setUrgent((u) => !u)}>
+            <button type="button" className={`ghost${urgent ? '' : ' caution'}`} aria-pressed={urgent} onClick={() => setUrgent((u) => !u)}>
               ⚑ {urgent ? 'Remove urgent' : 'Mark urgent'}
             </button>
           </div>
@@ -533,7 +534,12 @@ export function Cashier() {
           danger
           confirmLabel="Discard"
           cancelLabel="Keep it"
-          message={<p>"{discardTarget.label}" is only saved on this till. Discarding it can't be undone.</p>}
+          message={
+            <>
+              <p>"{discardTarget.label}" is only saved on this till, so it will be gone for good.</p>
+              <ConfirmWarning>This can't be undone.</ConfirmWarning>
+            </>
+          }
           onClose={() => setDiscardTarget(null)}
           onConfirm={() => discardHeld(discardTarget.id)}
         />

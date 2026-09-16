@@ -137,6 +137,15 @@ button.primary:hover { background: var(--forest); border-color: var(--forest); }
 button.primary:disabled { background: var(--line-strong); border-color: var(--line-strong); cursor: not-allowed; }
 button.ghost { background: transparent; border-color: var(--line-strong); color: var(--ink-soft); }
 button.ghost:hover { background: var(--paper); border-color: var(--ink); color: var(--ink); }
+/* Semantic variants — the border/text colour names the kind of action:
+   danger = destructive (Delete, Void, Discard) · caution = notable but reversible
+   (Mark 86'd, Mark urgent) · success = restores/completes (Mark available). */
+button.ghost.danger { color: var(--danger); border-color: #e3b7b4; }
+button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+button.ghost.caution { color: var(--ochre); border-color: #e2c9a8; }
+button.ghost.caution:hover { background: var(--ochre-tint); border-color: var(--ochre); color: var(--ochre); }
+button.ghost.success { color: var(--forest-dark); border-color: #b5cfbd; }
+button.ghost.success:hover { background: var(--forest-tint); border-color: var(--forest); color: var(--forest-dark); }
 button.icon { border: none; background: none; padding: 2px 8px; font-size: 1rem; color: var(--ink-soft); }
 button.icon:hover { background: none; color: var(--danger); }
 button.danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
@@ -619,15 +628,18 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   border-bottom: 1px solid var(--line);
 }
 .held-order-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
+  padding: 2px 4px 2px 2px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface);
 }
-.held-order-chip button.ghost { border: none; padding: 5px 8px; font-size: 12px; border-radius: 0; }
-.held-order-chip button.icon { padding: 5px 8px; font-size: 13px; }
+.held-order-chip button.ghost { border: none; padding: 3px 6px 3px 9px; font-size: 12px; border-radius: 999px; color: var(--ink); }
+.held-order-chip button.ghost:hover { background: var(--forest-tint); color: var(--forest-dark); }
+.held-order-chip button.icon { padding: 0 6px; font-size: 14px; line-height: 1; color: var(--muted); border-radius: 999px; }
+.held-order-chip button.icon:hover { color: var(--danger); background: var(--danger-tint); }
 
 .modal-overlay {
   position: fixed;
@@ -663,6 +675,8 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   align-items: center;
   gap: 10px;
   margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--ink);
   flex-shrink: 0;
 }
 .modal-header h2 {
@@ -670,6 +684,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   margin: 0;
   padding: 0;
   border: none;
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
@@ -1437,11 +1452,31 @@ button .spinner { margin-right: 8px; }
 
 /* Confirmation dialog */
 .confirm-modal { max-width: 400px; }
-.confirm-message { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin-bottom: 18px; }
-.confirm-message p { margin: 0 0 8px; }
+.confirm-message { font-size: 13.5px; line-height: 1.5; color: var(--ink); margin-bottom: 18px; }
+.confirm-message p { margin: 0 0 10px; }
 .confirm-message p:last-child { margin-bottom: 0; }
-.confirm-list { margin: 0 0 8px; padding-left: 18px; }
-.confirm-list li { margin-bottom: 2px; color: var(--ink); }
+.confirm-message .section-header { margin: 14px 0 4px; }
+.confirm-list { margin: 0 0 14px; padding: 0; list-style: none; }
+.confirm-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.confirm-list li .num { color: var(--muted); }
+.confirm-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--danger-tint);
+  border-left: 3px solid var(--danger);
+  color: var(--ink);
+  padding: 8px 10px;
+  font-size: 12.5px;
+  margin: 0;
+}
+.confirm-warning svg { color: var(--danger); flex-shrink: 0; }
 
 /* Toasts — one at a time, bottom-centre */
 .toast-region {
@@ -1553,4 +1588,20 @@ button:not(:disabled):active { transform: translateY(1px); }
   .ticket { transition: none; }
   button { transition: none; }
   button:not(:disabled):active { transform: none; }
+}
+
+/* Failed image: same box, quiet placeholder instead of the browser's broken icon */
+.image-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  color: var(--line-strong);
+}
+
+/* Soft arrival: real content fades in where the skeleton was */
+.item-tile:not(.skeleton-tile), table.ledger tbody tr, .ticket:not(.skeleton-ticket) { animation: fade-in 220ms ease-out; }
+.stats-row .stat { animation: fade-in 220ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .item-tile:not(.skeleton-tile), table.ledger tbody tr, .ticket:not(.skeleton-ticket), .stats-row .stat { animation: none; }
 }

@@ -1,4 +1,10 @@
+// Dev aid: VITE_API_DELAY_MS holds every API call for that long so skeleton
+// and spinner states can be seen. Vite only inlines it from the build's env,
+// so leave it unset (or 0) for production.
+const API_DELAY_MS = import.meta.env.DEV ? Number(import.meta.env.VITE_API_DELAY_MS) || 0 : 0;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  if (API_DELAY_MS) await new Promise((r) => setTimeout(r, API_DELAY_MS));
   const res = await fetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,

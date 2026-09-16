@@ -15,6 +15,19 @@ interface ConfirmModalProps {
   onClose: () => void;
 }
 
+/** Red-ruled callout for the irreversible part of the message. */
+export function ConfirmWarning({ children }: { children: ReactNode }) {
+  return (
+    <p className="confirm-warning" role="note">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+        <path d="M8 2.5l6 11H2z" strokeLinejoin="round" />
+        <path d="M8 6.5v3M8 11.6v.2" />
+      </svg>
+      <span>{children}</span>
+    </p>
+  );
+}
+
 /** The app's one "are you sure?" dialog, replacing window.confirm. The safe
  * button takes focus first so Enter never confirms by accident. */
 export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Cancel', danger, onConfirm, onClose }: ConfirmModalProps) {

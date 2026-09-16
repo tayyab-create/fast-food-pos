@@ -24,12 +24,18 @@ Copy `.env.example` to `.env`:
 
 ```
 VITE_OVERDUE_MINUTES=45
+VITE_API_DELAY_MS=0
 ```
 
-This is a **Vite build-time** variable — it's baked into the bundle when you
-run `dev` or `build`, not read at runtime. Changing it requires a rebuild (or
-restarting `vite dev`) to take effect. It controls how long a Kitchen ticket
-sits in Pending/Preparing before it's flagged overdue.
+These are **Vite build-time** variables — baked into the bundle when you run
+`dev` or `build`, not read at runtime. Changing one requires a rebuild (or
+restarting `vite dev`) to take effect.
+
+- `VITE_OVERDUE_MINUTES` — how long a Kitchen ticket sits in
+  Pending/Preparing before it's flagged overdue.
+- `VITE_API_DELAY_MS` — dev aid: holds every API call for this many
+  milliseconds so the skeleton and spinner states can be seen (try `1500`).
+  Only honoured by `vite dev`; a production build ignores it.
 
 ## Project layout
 

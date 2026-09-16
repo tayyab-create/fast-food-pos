@@ -11,11 +11,12 @@ import {
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
 import { TagInput } from '../components/TagInput';
 import { useToast } from '../components/Toast';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
+import { ItemImage } from '../components/ItemImage';
 import { LedgerTable } from '../components/LedgerTable';
 import { isMoneyInput } from '../money';
 import type { ComboEntry, MenuItem, Variant } from '../types';
@@ -431,7 +432,7 @@ export function Menu() {
             {
               header: '',
               render: (i: MenuItem) =>
-                i.image ? <img className="menu-avatar" src={i.image} alt="" /> : <span className="menu-avatar-empty" />,
+                i.image ? <ItemImage className="menu-avatar" src={i.image} fallback={<span className="menu-avatar-empty" />} /> : <span className="menu-avatar-empty" />,
             },
             {
               header: 'Item',
@@ -738,7 +739,7 @@ export function Menu() {
             )}
             <div className="form-actions">
               <button type="button" className="ghost" onClick={() => openEdit(selected)}>Edit</button>
-              <button type="button" className="ghost" onClick={() => toggleAvailable(selected)}>
+              <button type="button" className={`ghost ${selected.available === false ? 'success' : 'caution'}`} onClick={() => toggleAvailable(selected)}>
                 {selected.available === false ? 'Mark available' : "Mark 86'd"}
               </button>
               <button type="button" className="ghost danger" onClick={() => setDeleteTarget(selected)}>Delete</button>
@@ -761,17 +762,28 @@ export function Menu() {
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => deleteItem(deleteTarget)}
           message={
-            combosContaining(deleteTarget).length ? (
-              <>
-                <p>It's part of these combos and will be removed from them:</p>
-                <ul className="confirm-list">
-                  {combosContaining(deleteTarget).map((name) => <li key={name}>{name}</li>)}
-                </ul>
-                <p>This can't be undone.</p>
-              </>
-            ) : (
-              <p>It disappears from the Cashier grid and this list. This can't be undone.</p>
-            )
+            <>
+              <p>It disappears from the Cashier grid and this list.</p>
+              {combosContaining(deleteTarget).length > 0 && (
+                <>
+                  <div className="section-header">
+                    Removed from {combosContaining(deleteTarget).length} combo{combosContaining(deleteTarget).length > 1 ? 's' : ''}
+                  </div>
+                  <ul className="confirm-list">
+                    {combosContaining(deleteTarget).map((name) => {
+                      const combo = items.find((i) => i.name === name);
+                      return (
+                        <li key={name}>
+                          <span>{name}</span>
+                          {combo && <span className="num">${combo.price.toFixed(2)}</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+              <ConfirmWarning>This can't be undone.</ConfirmWarning>
+            </>
           }
         />
       )}

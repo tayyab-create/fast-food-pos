@@ -53,12 +53,20 @@ letter-spacing (`0.06em`) · body/inputs ~13.5–14px · hints/meta ~11–12px.
 Keep the range tight — this is a dense utility interface, not an editorial
 page with dramatic size jumps.
 
-**Rule:** the serif appears exactly once per screen (the page title).
+**Rule:** the serif is for headlines only — once per surface: the page
+title, and a dialog's title (a modal is its own sheet, so it gets its own
+serif heading over a 2px ink rule, the same header the order sheet uses).
 Everything functional is sans or mono. Don't let the serif creep into
 labels or buttons — that's what keeps it feeling institutional rather than
-"boutique." The one deliberate exception is the amount due in the payment
-modal: it is that surface's headline, so it takes the serif (with tabular
-numerals) to stand apart from the mono figures around it.
+"boutique." The one further exception is the amount due in the payment
+modal: it is that surface's headline figure, so it takes the serif (with
+tabular numerals) to stand apart from the mono figures around it.
+
+**Dialog anatomy:** serif title over the ink rule · body in sans · anything
+enumerable as ruled rows under a small-caps label (never bullets) · the
+irreversible part as a red-ruled callout (`ConfirmWarning`, same shape as
+the Kitchen's ochre order-note callout) · buttons last, danger in red, safe
+one focused.
 
 ## Layout
 
@@ -105,7 +113,13 @@ numerals) to stand apart from the mono figures around it.
   for real business decisions, never for cosmetic choices.
 - **Buttons**: one primary (`--forest-dark` fill, white text), one
   ghost/secondary (transparent, `--line-strong` border that darkens to
-  `--ink` on hover). No gradients, no shadows.
+  `--ink` on hover). No gradients, no shadows. The ghost has three semantic
+  variants whose text and border colour say what kind of action it is, at
+  rest and not only on hover: `danger` (red — destructive: Delete, Void,
+  Discard), `caution` (ochre — notable but reversible: Mark 86'd, Mark
+  urgent), `success` (forest — restores or completes: Mark available).
+  `primary danger` is the filled red confirm inside a void/delete dialog.
+  Neutral ghosts stay for Cancel, Edit, Keep, Hold, More.
 - **Status pill**: small rounded tag, colored by state (ochre =
   pending/preparing, forest = ready, muted = completed) — for showing a single
   order's status outside its own status context (e.g. a lookup or history
@@ -116,6 +130,9 @@ numerals) to stand apart from the mono figures around it.
 - **Validation**: invalid fields get a danger-red border + tinted glow and
   an inline message directly under the label — errors explain what's
   needed, not just "invalid."
+- **Images**: never the browser's broken-image icon. `ItemImage` swaps a
+  failed load for a quiet placeholder of the same size (or the row's empty
+  avatar), so a missing file degrades to "no photo", not to a visible error.
 - **Confirmations**: never the browser's `confirm()`. `ConfirmModal` asks
   the question in the title, states the consequence in one sentence, lists
   what's affected, and colours the destructive button red with the safe one
@@ -128,7 +145,8 @@ numerals) to stand apart from the mono figures around it.
 - **Loading**: a first load shows `.skeleton` placeholders in the shape of
   the content (tile grid, table rows via `LedgerTable loading`, stat cards,
   kitchen tickets), never a bare "Loading…" or an empty page that jumps when
-  data lands. A background refresh keeps what's on screen; the Kitchen shows
+  data lands, and the real content fades in (~220ms) where the placeholder
+  was rather than snapping. A background refresh keeps what's on screen; the Kitchen shows
   only a faint dot beside each column title that brightens while a fetch is
   in flight.
 - **Progress**: anything that waits on the network shows the `.spinner`

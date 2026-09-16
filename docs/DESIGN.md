@@ -172,7 +172,7 @@ stays about architecture and data shapes.
   columns (hiding a column lets the rest expand to fill the page). Orders
   shown as ledger tickets (sequential order number, an order-type tag, an
   "Urgent" tag + tinted background when flagged, elapsed time since placed — tinted red past
-  `VITE_OVERDUE_MINUTES` (default 45), the order-wide note as a highlighted
+  `VITE_OVERDUE_MINUTES` (default 45; `VITE_API_DELAY_MS` in `vite dev` delays every API call to preview loading states), the order-wide note as a highlighted
   callout, itemized lines with per-item notes and combo contents, one button
   to advance to the next status, plus a Void action). Urgent orders sort to
   the top of their column. Polls `/api/orders` every 3 seconds.
@@ -234,7 +234,8 @@ first.
 - **`ConfirmModal`** (`components/ConfirmModal.tsx`) — the app's one "are you
   sure?" dialog, replacing `window.confirm`. Takes a question as `title`, a
   `message` (a sentence, or a list of what's affected), `confirmLabel`,
-  optional `cancelLabel`, `danger` for a red confirm, and an `onConfirm` that
+  optional `cancelLabel`, `danger` for a red confirm, a `ConfirmWarning`
+  callout export for the irreversible sentence, and an `onConfirm` that
   may be async: the dialog shows a spinner, closes itself on success and
   stays open with the error on a throw. The safe button is focused first so
   Enter never confirms by accident. Used for deleting a menu item and
@@ -314,7 +315,8 @@ first.
     time (both ends `""`). Value is `{ from, to }`, formatted for the toggle
     by the exported `formatRange()`. Used by Reports to scope the page.
 - **`Modal`** (`components/Modal.tsx`) — the dialog shell every popup uses:
-  overlay, panel, `role="dialog"`, a title, a × close button, and closing on
+  overlay, panel, `role="dialog"`, a serif title over a 2px ink rule (the
+  order sheet's header, reused), a × close button, and closing on
   overlay click or Escape (only the topmost modal reacts to Escape, so a
   modal opened from inside another closes alone). `closeDisabled` blocks all
   three while a request is in flight; `lead`/`headerExtra` slot content above
