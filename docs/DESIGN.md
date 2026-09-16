@@ -182,9 +182,10 @@ stays about architecture and data shapes.
   revenue, average order, discounts given, voided count/value — then ruled
   tables of top-selling items by quantity, sales by payment method and by
   order type, and an orders-by-hour bar strip; beside them a searchable,
-  sortable, paginated Order History table for the same range (search by
-  order #/item/discount reason; multi-select Status and Order type filters
-  listed as removable `ActiveFilters` chips). Clicking a row opens
+  sortable, paginated Order History table with its own filters, independent
+  of the summary range (search by order #/item/discount reason; multi-select
+  Status and Order type filters and a second `DateRangePicker` defaulting to
+  all time, all listed as removable `ActiveFilters` chips). Clicking a row opens
   `OrderDetailModal` (with a Void action and the status-history timeline).
 - **Menu (`/menu`)**: a search bar + multi-select Category, Status
   (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind

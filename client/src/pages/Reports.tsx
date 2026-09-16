@@ -24,6 +24,8 @@ export function Reports() {
 
   /** Range the whole page covers — the summary and the history table alike. Both ends empty = all time. */
   const [range, setRange] = useState<DateRange>(() => ({ from: TODAY, to: TODAY }));
+  /** Order history has its own range, independent of the summary's; default all time. */
+  const [historyRange, setHistoryRange] = useState<DateRange>({ from: '', to: '' });
 
   async function load() {
     try {
@@ -43,8 +45,8 @@ export function Reports() {
 
   // Inclusive whole days in *local* time: from local midnight of fromDate up
   // to (not including) local midnight the day after toDate.
-  const fromTime = isoDateToLocalDate(range.from)?.getTime() ?? -Infinity;
-  const toTime = (isoDateToLocalDate(range.to)?.getTime() ?? Infinity) + DAY_MS;
+  const fromTime = isoDateToLocalDate(historyRange.from)?.getTime() ?? -Infinity;
+  const toTime = (isoDateToLocalDate(historyRange.to)?.getTime() ?? Infinity) + DAY_MS;
 
   const filtered = orders.filter((o) => {
     const q = search.trim().toLowerCase();
@@ -61,7 +63,8 @@ export function Reports() {
     return matchesSearch && matchesStatus && matchesType && matchesRange;
   });
 
-  const filtersActive = statusFilters.length > 0 || typeFilters.length > 0;
+  const historyRangeActive = !!(historyRange.from || historyRange.to);
+  const filtersActive = statusFilters.length > 0 || typeFilters.length > 0 || historyRangeActive;
 
   if (loadError) return <p className="field-error" role="alert">{loadError}</p>;
   if (!report) {
@@ -189,7 +192,7 @@ export function Reports() {
 
         <div className="reports-col reports-col-wide">
           <div className="list-header">
-            <div className="section-header">Order history · {dayLabel}</div>
+            <div className="section-header">Order history</div>
             <input
               type="text"
               placeholder="Search by order #, item, discount or void reason…"
@@ -212,16 +215,19 @@ export function Reports() {
               onChange={setTypeFilters}
               placeholder="All order types"
             />
+            <DateRangePicker value={historyRange} onChange={setHistoryRange} max={TODAY} placeholder="All time" />
           </div>
 
           <ActiveFilters
             filters={[
               ...statusFilters.map((s) => ({ label: `Status: ${s}`, onRemove: () => setStatusFilters(statusFilters.filter((x) => x !== s)) })),
               ...typeFilters.map((t) => ({ label: `Type: ${t}`, onRemove: () => setTypeFilters(typeFilters.filter((x) => x !== t)) })),
+              ...(historyRangeActive ? [{ label: `Dates: ${formatRange(historyRange)}`, onRemove: () => setHistoryRange({ from: '', to: '' }) }] : []),
             ]}
             onClearAll={() => {
               setStatusFilters([]);
               setTypeFilters([]);
+              setHistoryRange({ from: '', to: '' });
             }}
           />
 
