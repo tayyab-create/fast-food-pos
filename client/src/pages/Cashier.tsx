@@ -445,7 +445,8 @@ export function Cashier() {
           )}
           <div className="total-row">
             <span>Total</span>
-            <span className="num">${total.toFixed(2)}</span>
+            {/* Re-keyed on change so the tint flash runs once per new amount. */}
+            <span className="num total-amount" key={total}>${total.toFixed(2)}</span>
           </div>
         </div>
 

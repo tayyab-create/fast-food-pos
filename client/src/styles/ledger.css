@@ -1533,3 +1533,24 @@ table.ledger td .skeleton { margin: 3px 0; }
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; background: var(--line); }
 }
+
+/* Motion — short, purposeful, and off under prefers-reduced-motion */
+.modal-overlay { animation: fade-in 150ms ease-out; }
+.modal { animation: rise-in 150ms ease-out; }
+.ledger-line { animation: rise-in 150ms ease-out; }
+.filter-chip { animation: rise-in 120ms ease-out; }
+.ticket { transition: opacity 160ms ease-in, transform 160ms ease-in; }
+.ticket.leaving { opacity: 0; transform: translateX(12px); pointer-events: none; }
+.total-amount { animation: tint-flash 350ms ease-out; }
+button { transition: background 0.1s, border-color 0.1s, color 0.1s, transform 0.06s; }
+button:not(:disabled):active { transform: translateY(1px); }
+.spinner { transition: none; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes tint-flash { from { color: #cfe3d5; } to { color: white; } }
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay, .modal, .ledger-line, .filter-chip, .total-amount { animation: none; }
+  .ticket { transition: none; }
+  button { transition: none; }
+  button:not(:disabled):active { transform: none; }
+}

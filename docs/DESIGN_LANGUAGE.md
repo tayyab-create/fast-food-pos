@@ -135,9 +135,13 @@ numerals) to stand apart from the mono figures around it.
   ring (2px, current text colour, `.large` for veils) next to a verb in
   progress — "Saving…", "Placing order…", "Loading image…" — and the button
   that started it is disabled until it settles. Never a bare label change.
-- **Motion**: none beyond simple transitions on focus/hover and the
-  spinner's rotation (slowed under `prefers-reduced-motion`). No entrance
-  animations, no hover-lift on every element.
+- **Motion**: only where it shows what just changed, and never longer than
+  ~200ms with a plain ease — modals fade and rise 8px, a new cart line or
+  filter chip rises in, a kitchen ticket slides out of its column as its
+  status saves, the cart total flashes its tint when the amount changes,
+  buttons press down 1px, the spinner rotates. No hover-lift, no bounce, no
+  page-load choreography. Everything above is switched off under
+  `prefers-reduced-motion` (the spinner just slows).
 
 ## Voice
 

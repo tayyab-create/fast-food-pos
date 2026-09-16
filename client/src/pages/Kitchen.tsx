@@ -29,6 +29,8 @@ const NEXT_LABEL: Record<Status, string> = {
 };
 const OVERDUE_MINUTES = Number(import.meta.env.VITE_OVERDUE_MINUTES) || 45;
 const POLL_MS = 3000;
+/** Matches the .ticket.leaving transition in ledger.css. */
+const LEAVE_MS = 160;
 
 const COLUMNS: { status: Status; label: string }[] = [
   { status: 'pending', label: 'Pending' },
@@ -63,6 +65,8 @@ export function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  /** Tickets fading out of their column while their status change is saved. */
+  const [leaving, setLeaving] = useState<Set<string>>(new Set());
   // Polling runs every 3s; report a failure once and stay quiet until it recovers.
   const pollFailed = useRef(false);
   const [search, setSearch] = useState('');
@@ -99,8 +103,9 @@ export function Kitchen() {
   }, []);
 
   async function setStatus(order: Order, status: OrderStatus, undoFrom?: OrderStatus) {
+    setLeaving((prev) => new Set(prev).add(order._id));
     try {
-      await updateOrderStatus(order._id, status);
+      await Promise.all([updateOrderStatus(order._id, status), new Promise((r) => setTimeout(r, LEAVE_MS))]);
       await load();
       if (undoFrom) {
         toast(`#${order.orderNumber} → ${STATUS_LABEL[status]}`, {
@@ -109,6 +114,8 @@ export function Kitchen() {
       }
     } catch (err) {
       toast(errorMessage(err, 'Could not update the order.'), { kind: 'error' });
+    } finally {
+      setLeaving((prev) => { const next = new Set(prev); next.delete(order._id); return next; });
     }
   }
   // Routine moves are quiet except for an Undo — a cook advancing forty
@@ -210,7 +217,7 @@ export function Kitchen() {
                   const minutes = elapsedMinutes(o.createdAt);
                   const overdue = col.status !== 'ready' && minutes >= OVERDUE_MINUTES;
                   return (
-                    <div className={`ticket${overdue ? ' overdue' : ''}${o.urgent ? ' urgent' : ''}`} key={o._id}>
+                    <div className={`ticket${overdue ? ' overdue' : ''}${o.urgent ? ' urgent' : ''}${leaving.has(o._id) ? ' leaving' : ''}`} key={o._id}>
                       <div className="ticket-header">
                         <span className="ticket-number">
                           #{o.orderNumber}
