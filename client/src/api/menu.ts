@@ -34,3 +34,16 @@ export async function deleteMenuItemImage(id: string): Promise<MenuItem> {
 /** Server downloads the image at `url`, normalises it like an upload, and stores it. */
 export const setMenuItemImageUrl = (id: string, url: string) =>
   api.post<MenuItem>(`/menu/${id}/image-url`, { url });
+
+export interface BulkUpdate {
+  ids: string[];
+  available?: boolean;
+  pinned?: boolean;
+  category?: string;
+  addTag?: string;
+  removeTag?: string;
+}
+
+export const bulkUpdateMenuItems = (update: BulkUpdate) => api.put<MenuItem[]>('/menu/bulk', update);
+
+export const duplicateMenuItem = (id: string) => api.post<MenuItem>(`/menu/${id}/duplicate`, {});

@@ -122,4 +122,14 @@ async function popular(req, res) {
   res.json(summarize(orders).topItems.slice(0, POPULAR_COUNT).map((i) => i.name));
 }
 
-module.exports = { summary, popular, summarize, parseDay };
+/** Quantity sold per item name over the last 7 days — the Menu page's sales
+ * column, so it can show what's moving without opening Reports. */
+async function recentSales(req, res) {
+  const since = new Date(Date.now() - POPULAR_DAYS * DAY_MS);
+  const orders = await Order.find({ createdAt: { $gte: since }, status: { $ne: 'voided' } });
+  const byName = {};
+  for (const item of summarize(orders).items) byName[item.name] = item.qty;
+  res.json(byName);
+}
+
+module.exports = { summary, popular, recentSales, summarize, parseDay };

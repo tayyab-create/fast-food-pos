@@ -12,3 +12,6 @@ export const getSummaryReport = (from?: string, to?: string) => {
 
 /** Names of the best-selling items over the last week. */
 export const getPopularItems = () => api.get<string[]>('/reports/popular');
+
+/** Quantity sold per item name over the last 7 days, keyed by item name. */
+export const getRecentSales = () => api.get<Record<string, number>>('/reports/recent-sales');

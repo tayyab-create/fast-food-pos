@@ -119,19 +119,27 @@ till in a taxed jurisdiction needs this; it's absent today, not disabled.
   history more useful than a plain red pill.
 
 ### Reports
-- **Date range**: the daily report is always "today" — no way to look at
-  yesterday, last week, or a custom range. Order history technically has all
-  orders (searchable/sortable), but the stats cards (order count, revenue,
-  top items) are locked to midnight-to-now.
-- **Export**: no CSV/download of order history or the daily report — useful
-  for actual bookkeeping outside the app.
+Done: a `DateRangePicker` scopes the whole Overview/Items/Payments tabs
+(with period-over-period deltas), plus CSV export on Items/Payments/Order
+history. Still open:
+- **Comparing two arbitrary ranges side by side** — today the comparison is
+  always "the same-length period immediately before," not an arbitrary
+  second range picked by the user.
+- **Category-level reporting** — items are broken out individually; nothing
+  rolls sales up by category.
 
 ### Menu admin
-- **Bulk actions**: the per-item "Mark 86'd" toggle covers the single-item
-  case; there's still no way to 86 or restore several items at once (end of
-  a rush, start of a day).
-- **Category management**: categories are just strings on each item, created
-  implicitly by typing a new one — no rename-across-all-items or reorder.
+Done: bulk select + Mark available/86'd/Pin/Unpin/Set category/Add tag/
+Delete (`PUT /api/menu/bulk`); category/tag rename-across-all-items and
+delete via the Settings page (`/settings`, backed by `models/Label.js`); a
+Duplicate action; a 7-day sales column; an "in N combos" badge.
+- **Reorder**: categories follow alphabetical order on the Cashier grid's
+  tabs, and items within a category follow whatever order the DB returns
+  them in (aside from `pinned` sorting first) — no drag-to-reorder for
+  either, so the grid can't be arranged to match the physical menu board.
+- **Price change history**: no record of past prices, so nothing in Reports
+  can explain a revenue swing as "the price changed," only as "volume
+  changed."
 
 ## Data / schema notes for whoever picks these up
 

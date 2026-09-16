@@ -26,6 +26,8 @@ function handleImageUpload(req, res, next) {
 
 router.get('/', menuController.list);
 router.post('/', menuController.create);
+router.put('/bulk', menuController.bulkUpdate);
+router.post('/:id/duplicate', menuController.duplicate);
 router.put('/:id', menuController.update);
 router.delete('/:id', menuController.remove);
 router.post('/:id/image', handleImageUpload, menuController.uploadImage);

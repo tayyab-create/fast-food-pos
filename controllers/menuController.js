@@ -102,6 +102,78 @@ async function update(req, res) {
   res.json(item);
 }
 
+// Fields a bulk edit may set — deliberately narrower than UPDATABLE_FIELDS:
+// bulk-editing name/price/variants/combo contents across dissimilar items
+// isn't a coherent action, so those stay single-item only.
+const BULK_FIELDS = ['available', 'pinned', 'category'];
+const MAX_BULK_TAGS = MAX_TAGS;
+
+/** Applies the same field changes to several items at once — the Menu list's
+ * checkbox toolbar (86/available, pin/unpin, category, add/remove one tag). */
+async function bulkUpdate(req, res) {
+  const { ids, available, pinned, category, addTag, removeTag } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => !mongoose.isValidObjectId(id))) {
+    return res.status(400).json({ error: 'ids must be a non-empty list of valid item ids' });
+  }
+  const set = {};
+  if (available !== undefined) set.available = !!available;
+  if (pinned !== undefined) set.pinned = !!pinned;
+  if (category !== undefined) {
+    const { name, error } = labels.validateName('category', category);
+    if (error) return res.status(400).json({ error });
+    set.category = name;
+  }
+  if (addTag !== undefined) {
+    const { name, error } = labels.validateName('tag', addTag);
+    if (error) return res.status(400).json({ error });
+    if (name.length > MAX_TAG_LENGTH) return res.status(400).json({ error: `Tag must be ${MAX_TAG_LENGTH} characters or fewer` });
+  }
+  if (Object.keys(set).length === 0 && addTag === undefined && removeTag === undefined) {
+    return res.status(400).json({ error: 'Nothing to update' });
+  }
+
+  const ops = ids.map((id) => {
+    const update = { ...set };
+    const push = {};
+    const pull = {};
+    if (addTag !== undefined) push.tags = String(addTag).trim();
+    if (removeTag !== undefined) pull.tags = String(removeTag).trim();
+    const doc = { ...(Object.keys(update).length ? { $set: update } : {}) };
+    // $addToSet avoids duplicating a tag an item already has (each item's
+    // tags array has no uniqueness constraint of its own).
+    if (Object.keys(push).length) doc.$addToSet = push;
+    if (Object.keys(pull).length) doc.$pull = pull;
+    return { updateOne: { filter: { _id: id }, update: doc } };
+  });
+  await Promise.all([
+    MenuItem.bulkWrite(ops),
+    category !== undefined ? labels.ensure('category', [set.category]) : null,
+    addTag !== undefined ? labels.ensure('tag', [String(addTag).trim()]) : null,
+  ]);
+  const items = await MenuItem.find({ _id: { $in: ids } });
+  res.json(items);
+}
+
+/** Copies an item as a starting point for a variation — name gets " (Copy)",
+ * pinned/available reset so the duplicate doesn't silently go live pinned,
+ * the image is NOT copied (it's tied to the original's id on disk). */
+async function duplicate(req, res) {
+  const source = await MenuItem.findById(req.params.id);
+  if (!source) return res.status(404).json({ error: 'Menu item not found' });
+  const copy = await MenuItem.create({
+    name: `${source.name} (Copy)`,
+    price: source.price,
+    category: source.category,
+    variants: source.variants,
+    isCombo: source.isCombo,
+    comboItems: source.comboItems,
+    available: true,
+    pinned: false,
+    tags: source.tags,
+  });
+  res.status(201).json(copy);
+}
+
 async function remove(req, res) {
   const item = await MenuItem.findByIdAndDelete(req.params.id);
   if (!item) return res.status(404).json({ error: 'Menu item not found' });
@@ -221,4 +293,4 @@ async function removeImage(req, res) {
   res.json(item);
 }
 
-module.exports = { list, create, update, remove, uploadImage, uploadImageFromUrl, removeImage, validateFields, isPrivateAddress };
+module.exports = { list, create, update, remove, bulkUpdate, duplicate, uploadImage, uploadImageFromUrl, removeImage, validateFields, isPrivateAddress };

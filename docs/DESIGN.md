@@ -141,6 +141,8 @@ be picked.
 | POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems?, available?, pinned?, tags? } | MenuItem (201) |
 | PUT    | /api/menu/:id     | { name?, price?, category?, variants?, isCombo?, comboItems?, available?, pinned?, tags? } | MenuItem |
 | DELETE | /api/menu/:id     | —                                       | 204                    |
+| PUT    | /api/menu/bulk    | { ids: string[], available?, pinned?, category?, addTag?, removeTag? } — at least one of the optional fields; category/addTag validated and registered as labels | MenuItem[] (the updated items) |
+| POST   | /api/menu/:id/duplicate | —                                  | MenuItem (201) — "<name> (Copy)", `available: true`, `pinned: false`, no image |
 | POST   | /api/menu/:id/image | multipart, field `image` (jpeg/png/webp, ≤5MB) | MenuItem |
 | DELETE | /api/menu/:id/image | —                                     | MenuItem               |
 | GET    | /api/orders       | ?status= (optional filter)              | Order[]                |
@@ -153,6 +155,7 @@ be picked.
 | DELETE | /api/labels/:kind/:id | — (category: items move to "Other"; tag: pulled off items) | 204 |
 | GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], items: [{name, qty, revenue, orders, orderShare}], byPaymentMethod, byOrderType, byHour[24], byWeekday[7], byDay: [{date, count, revenue}], cashTendered, changeGiven, comboShare, discountsByReason: [{reason, count, amount}], voids: [{_id, orderNumber, total, reason, at}] } — voided orders are excluded from every revenue figure and counted separately; the client fetches the same-length range before `from` a second time to show period-over-period deltas |
 | GET    | /api/reports/popular | —                                    | string[] — names of the 5 best-selling items over the last 7 days (the Cashier's "Popular" badge) |
+| GET    | /api/reports/recent-sales | —                               | { [itemName]: qty } — quantity sold per item name over the last 7 days (Menu's Sales (7d) column) |
 
 ## Visual style
 See [`DESIGN_LANGUAGE.md`](DESIGN_LANGUAGE.md) for the full token/type/component
@@ -229,31 +232,44 @@ stays about architecture and data shapes.
 - **Menu (`/menu`)**: a search bar + multi-select Category, Status
   (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind
   (Single/Sizes/Combo) and Tag filters, with the active ones listed as
-  `ActiveFilters` chips, above a ledger table of menu items, sortable by
-  item, category, price (lowest size price for sized items) and kind (each row shows
-  a 32px thumbnail when it has an `image`, and a pin mark before the name
-  when `pinned`). The detail sidebar has a "Cashier grid" section with the
-  pin checkbox and a `TagInput`; edits there are held as a draft and written
-  by a Save button (with Discard) that appears only once something changed,
-  so no stray click reaches the catalog. Clicking a row shows its details in a sticky sidebar (Edit/Mark
-  86'd/Delete actions, with a confirm dialog before delete); "+ Add item" or
-  Edit opens a form in the same sidebar — name/category/price fields (a
-  free-text-with-suggestions Combobox for category, unless "This is a combo"
-  is checked, which locks category to "Combo"), a photo drop zone with an
-  "or paste an image URL" field beneath it (the preview renders straight
-  from the pasted URL — Save is disabled with a "Loading image…" state until
-  the preview has loaded or failed; on save the server downloads and stores
-  it via `POST /api/menu/:id/image-url`), a "Pin to the top of the Cashier
-  grid" checkbox and a `TagInput` Tags field, an "Available for sale"
-  checkbox, a repeatable size-row editor for variants, a searchable checklist
-  to build combos from existing items (`ComboPicker`: a per-item size picker
-  when the item has variants, a qty field per selected item, and a running
-  price sum — the item's own price field auto-fills from that sum until the
-  user types their own, so it can be saved as-is or overridden), and a file
-  input + live preview + remove action for the product photo. Unavailable
-  items stay in the list (tagged "(86'd)") rather than being deleted;
-  deleting an item that's inside a combo warns, then removes it from those
-  combos server-side.
+  `ActiveFilters` chips, a "Select all N filtered" / "Deselect all" toggle,
+  and a ledger table of menu items, sortable by item, category, price
+  (lowest size price for sized items), a 7-day sales figure (from
+  `GET /api/reports/recent-sales`, best-effort — a load failure just leaves
+  the column at 0 rather than blocking the page) and kind. Each row shows a
+  checkbox (click doesn't open the row), a 32px thumbnail when it has an
+  `image`, a pin mark before the name when `pinned`, and an "in N combos"
+  badge when other combos reference it. Checking any row opens a bulk
+  toolbar above the table — Mark available/86'd, Pin/Unpin, Set category…,
+  Add tag…, Delete — that calls `PUT /api/menu/bulk` (or, for delete, one
+  `DELETE` per item) and reports how many items it affected via a toast.
+  The detail sidebar has a "Cashier grid" section with the pin checkbox and
+  a `TagInput`; edits there are held as a draft and written by a Save button
+  (with Discard) that appears only once something changed, so no stray
+  click reaches the catalog. Clicking a row shows its details in a sticky
+  sidebar (Edit/Mark 86'd/Duplicate/Delete actions, the last with a confirm
+  dialog — bulk delete gets the same dialog, listing every selected item
+  with its combo membership); Duplicate calls `POST /api/menu/:id/duplicate`,
+  which copies the item as "<name> (Copy)" with `available: true`,
+  `pinned: false`, and no image (images are tied to the original's id on
+  disk) — a starting point for a variation, opened straight into its detail
+  view. "+ Add item" or Edit opens a form in the same sidebar, grouped under
+  the detail view's small-caps section headers — **Basics** (name/category/
+  price, a free-text-with-suggestions Combobox for category unless "This is
+  a combo" locks it to "Combo", and "Available for sale" right below price),
+  **Photo** (a drop zone with an "or paste an image URL" field beneath it —
+  the preview renders straight from the pasted URL, Save is disabled with a
+  "Loading image…" state until it has loaded or failed, and on save the
+  server downloads and stores a pasted URL via
+  `POST /api/menu/:id/image-url`), **Cashier grid** (pin checkbox + Tags
+  `TagInput`), **Sizes** (a repeatable size-row editor for variants) and
+  **Combo** (the "This is a combo" checkbox and, when checked, `ComboPicker`
+  — a per-item size picker when the item has variants, a qty field per
+  selected item, and a running price sum that auto-fills the item's own
+  price field until the user types their own, so it can be saved as-is or
+  overridden). Unavailable items stay in the list (tagged "(86'd)") rather
+  than being deleted; deleting an item that's inside a combo warns, then
+  removes it from those combos server-side.
 
 ## Reusable components
 Shared building blocks that should be reused rather than re-implemented — if

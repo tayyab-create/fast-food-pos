@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
+  bulkUpdateMenuItems,
   createMenuItem,
+  duplicateMenuItem,
   setMenuItemImageUrl,
   deleteMenuItem,
   deleteMenuItemImage,
@@ -9,6 +11,7 @@ import {
   uploadMenuItemImage,
 } from '../api/menu';
 import { getLabels } from '../api/labels';
+import { getRecentSales } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
@@ -84,6 +87,13 @@ export function Menu() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categoryNames, setCategoryNames] = useState<string[]>([]);
   const [tagNames, setTagNames] = useState<string[]>([]);
+  /** Qty sold per item name over the last 7 days — best-effort, load failures leave it empty rather than blocking the page. */
+  const [recentSales, setRecentSales] = useState<Record<string, number>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<null | 'category' | 'tag'>(null);
+  const [bulkValue, setBulkValue] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState<MenuItem[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -114,11 +124,15 @@ export function Menu() {
       setCategoryNames(categories.map((c) => c.name));
       setTagNames(tags.map((t) => t.name));
       setListError(null);
+      // Prune any selection that no longer exists (e.g. after a delete elsewhere).
+      setSelectedIds((prev) => new Set([...prev].filter((id) => menu.some((i) => i._id === id))));
     } catch (err) {
       setListError(errorMessage(err, 'Could not load the menu.'));
     } finally {
       setLoaded(true);
     }
+    // Sales are a nice-to-have on this page — never let a failure here block the menu itself.
+    getRecentSales().then(setRecentSales).catch(() => {});
   }
 
   useEffect(() => {
@@ -137,6 +151,62 @@ export function Menu() {
     return items
       .filter((i) => i.isCombo && i.comboItems?.some((entry) => entry.itemId === item._id))
       .map((i) => i.name);
+  }
+
+  // --- Bulk selection -----------------------------------------------------
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    setBulkValue('');
+  }
+
+  async function applyBulk(update: Omit<Parameters<typeof bulkUpdateMenuItems>[0], 'ids'>, message: string) {
+    if (bulkBusy || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await bulkUpdateMenuItems({ ids: [...selectedIds], ...update });
+      await load();
+      toast(message);
+      setBulkAction(null);
+      setBulkValue('');
+    } catch (err) {
+      toast(errorMessage(err, 'Could not update the selected items.'), { kind: 'error' });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDelete(targets: MenuItem[]) {
+    let failed = 0;
+    await Promise.all(targets.map((item) => deleteMenuItem(item._id).catch(() => { failed += 1; })));
+    clearSelection();
+    await load();
+    if (failed > 0) toast(`${failed} item${failed > 1 ? 's' : ''} could not be deleted`, { kind: 'error' });
+    else toast(`${targets.length} item${targets.length > 1 ? 's' : ''} deleted`);
+  }
+
+  const [duplicating, setDuplicating] = useState<string | null>(null);
+  async function duplicateItem(item: MenuItem) {
+    setDuplicating(item._id);
+    try {
+      const copy = await duplicateMenuItem(item._id);
+      await load();
+      setSelectedId(copy._id);
+      setMode('view');
+      toast(`${item.name} duplicated as "${copy.name}"`);
+    } catch (err) {
+      toast(errorMessage(err, 'Could not duplicate the item.'), { kind: 'error' });
+    } finally {
+      setDuplicating(null);
+    }
   }
 
   function selectItem(item: MenuItem) {
@@ -434,8 +504,67 @@ export function Menu() {
 
         {listError && <p className="field-error" role="alert">{listError}</p>}
 
+        {filteredItems.length > 0 && (
+          <button
+            type="button"
+            className="link-btn select-all-link"
+            onClick={() => setSelectedIds(filteredItems.every((i) => selectedIds.has(i._id)) ? new Set() : new Set(filteredItems.map((i) => i._id)))}
+          >
+            {filteredItems.every((i) => selectedIds.has(i._id)) ? 'Deselect all' : `Select all ${filteredItems.length} filtered`}
+          </button>
+        )}
+
+        {selectedIds.size > 0 && (
+          <div className="bulk-toolbar" role="toolbar" aria-label="Bulk actions">
+            <span className="bulk-count">{selectedIds.size} selected</span>
+            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ available: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked available`)}>Mark available</button>
+            <button type="button" className="ghost caution" disabled={bulkBusy} onClick={() => applyBulk({ available: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked 86'd`)}>Mark 86&apos;d</button>
+            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ pinned: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} pinned`)}>Pin</button>
+            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ pinned: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} unpinned`)}>Unpin</button>
+
+            {bulkAction === 'category' ? (
+              <span className="bulk-inline-field">
+                <Combobox value={bulkValue} options={distinctCategories} onChange={setBulkValue} placeholder="Category" />
+                <button type="button" className="primary" disabled={bulkBusy || !bulkValue.trim()} onClick={() => applyBulk({ category: bulkValue.trim() }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} moved to ${bulkValue.trim()}`)}>
+                  {bulkBusy && <span className="spinner" aria-hidden="true" />}Apply
+                </button>
+                <button type="button" className="ghost" disabled={bulkBusy} onClick={() => { setBulkAction(null); setBulkValue(''); }}>Cancel</button>
+              </span>
+            ) : (
+              <button type="button" className="ghost" disabled={bulkBusy} onClick={() => setBulkAction('category')}>Set category…</button>
+            )}
+
+            {bulkAction === 'tag' ? (
+              <span className="bulk-inline-field">
+                <input placeholder="Tag" maxLength={MAX_TAG_LENGTH} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} />
+                <button type="button" className="primary" disabled={bulkBusy || !bulkValue.trim()} onClick={() => applyBulk({ addTag: bulkValue.trim() }, `Tag added to ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}`)}>
+                  {bulkBusy && <span className="spinner" aria-hidden="true" />}Add
+                </button>
+                <button type="button" className="ghost" disabled={bulkBusy} onClick={() => { setBulkAction(null); setBulkValue(''); }}>Cancel</button>
+              </span>
+            ) : (
+              <button type="button" className="ghost" disabled={bulkBusy} onClick={() => setBulkAction('tag')}>Add tag…</button>
+            )}
+
+            <button type="button" className="ghost danger" disabled={bulkBusy} style={{ marginLeft: 'auto' }} onClick={() => setBulkDeleteTarget(items.filter((i) => selectedIds.has(i._id)))}>Delete</button>
+            <button type="button" className="ghost" disabled={bulkBusy} onClick={clearSelection}>Clear</button>
+          </div>
+        )}
+
         <LedgerTable
           columns={[
+            {
+              header: '',
+              render: (i: MenuItem) => (
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${i.name}`}
+                  checked={selectedIds.has(i._id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleSelected(i._id)}
+                />
+              ),
+            },
             {
               header: '',
               render: (i: MenuItem) =>
@@ -443,18 +572,22 @@ export function Menu() {
             },
             {
               header: 'Item',
-              render: (i: MenuItem) => (
-                <>
-                  {i.pinned && (
-                    <span className="row-pin" title="Pinned to the top of the Cashier grid">
-                      <PinIcon />
-                      <span className="visually-hidden">Pinned. </span>
-                    </span>
-                  )}
-                  {i.name}
-                  {i.available === false && <span className="muted-text"> (86'd)</span>}
-                </>
-              ),
+              render: (i: MenuItem) => {
+                const comboCount = combosContaining(i).length;
+                return (
+                  <>
+                    {i.pinned && (
+                      <span className="row-pin" title="Pinned to the top of the Cashier grid">
+                        <PinIcon />
+                        <span className="visually-hidden">Pinned. </span>
+                      </span>
+                    )}
+                    {i.name}
+                    {i.available === false && <span className="muted-text"> (86'd)</span>}
+                    {comboCount > 0 && <span className="combo-membership-badge">in {comboCount} combo{comboCount > 1 ? 's' : ''}</span>}
+                  </>
+                );
+              },
               sortValue: (i: MenuItem) => i.name.toLowerCase(),
             },
             { header: 'Category', render: (i: MenuItem) => i.category, sortValue: (i: MenuItem) => i.category.toLowerCase() },
@@ -466,6 +599,12 @@ export function Menu() {
                   ? `from $${Math.min(...i.variants.map((v) => v.price)).toFixed(2)}`
                   : `${i.price.toFixed(2)}`,
               sortValue: lowestPrice,
+            },
+            {
+              header: 'Sales (7d)',
+              numeric: true,
+              render: (i: MenuItem) => recentSales[i.name] ?? <span className="muted-text">0</span>,
+              sortValue: (i: MenuItem) => recentSales[i.name] ?? 0,
             },
             { header: 'Details', render: (i: MenuItem) => <span className="clamp-2">{describe(i)}</span>, sortValue: kindOf },
           ]}
@@ -485,6 +624,7 @@ export function Menu() {
           <>
             <h2>{mode === 'edit' ? 'Edit item' : 'Add item'}</h2>
 
+            <div className="section-header">Basics</div>
             <div className="field-grid">
               <label>
                 Name
@@ -524,9 +664,17 @@ export function Menu() {
                 {fieldErrors.price && <p className="field-error">{fieldErrors.price}</p>}
               </label>
             </div>
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.available}
+                onChange={(e) => setForm({ ...form, available: e.target.checked })}
+              />
+              Available for sale
+            </label>
 
+            <div className="section-header">Photo</div>
             <div className="image-field">
-              <span className="field-label">Photo</span>
               {/* The native input stays in the tab order but off-screen; the label is
                   the visible control (a drop zone that becomes the preview). The value
                   is cleared after each pick so re-choosing the same file after
@@ -595,14 +743,7 @@ export function Menu() {
               {imageError && <p className="field-error">{imageError}</p>}
             </div>
 
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={form.available}
-                onChange={(e) => setForm({ ...form, available: e.target.checked })}
-              />
-              Available for sale
-            </label>
+            <div className="section-header">Cashier grid</div>
             <label className="checkbox-line">
               <input
                 type="checkbox"
@@ -615,6 +756,8 @@ export function Menu() {
               <span className="field-label-row">Tags <span className="field-hint">up to {MAX_TAGS}</span></span>
               <TagInput value={form.tags} options={distinctTags} onChange={(tags) => setForm({ ...form, tags })} max={MAX_TAGS} maxLength={MAX_TAG_LENGTH} placeholder="e.g. New, Spicy" />
             </label>
+
+            <div className="section-header">Sizes</div>
             <label className="checkbox-line">
               <input
                 type="checkbox"
@@ -656,6 +799,7 @@ export function Menu() {
               </div>
             )}
 
+            <div className="section-header">Combo</div>
             <label className="checkbox-line">
               <input
                 type="checkbox"
@@ -749,6 +893,10 @@ export function Menu() {
               <button type="button" className={`ghost ${selected.available === false ? 'success' : 'caution'}`} onClick={() => toggleAvailable(selected)}>
                 {selected.available === false ? 'Mark available' : "Mark 86'd"}
               </button>
+              <button type="button" className="ghost" disabled={duplicating === selected._id} onClick={() => duplicateItem(selected)}>
+                {duplicating === selected._id && <span className="spinner" aria-hidden="true" />}
+                Duplicate
+              </button>
               <button type="button" className="ghost danger" onClick={() => setDeleteTarget(selected)}>Delete</button>
             </div>
           </>
@@ -789,6 +937,34 @@ export function Menu() {
                   </ul>
                 </>
               )}
+              <ConfirmWarning>This can't be undone.</ConfirmWarning>
+            </>
+          }
+        />
+      )}
+
+      {bulkDeleteTarget && (
+        <ConfirmModal
+          title={`Delete ${bulkDeleteTarget.length} item${bulkDeleteTarget.length > 1 ? 's' : ''}?`}
+          danger
+          confirmLabel={`Delete ${bulkDeleteTarget.length} item${bulkDeleteTarget.length > 1 ? 's' : ''}`}
+          cancelLabel="Keep items"
+          onClose={() => setBulkDeleteTarget(null)}
+          onConfirm={() => bulkDelete(bulkDeleteTarget)}
+          message={
+            <>
+              <p>They disappear from the Cashier grid and this list.</p>
+              <ul className="confirm-list">
+                {bulkDeleteTarget.map((item) => {
+                  const comboCount = combosContaining(item).length;
+                  return (
+                    <li key={item._id}>
+                      <span>{item.name}{comboCount > 0 && ` — in ${comboCount} combo${comboCount > 1 ? 's' : ''}`}</span>
+                      <span className="num">${item.price.toFixed(2)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
               <ConfirmWarning>This can't be undone.</ConfirmWarning>
             </>
           }
