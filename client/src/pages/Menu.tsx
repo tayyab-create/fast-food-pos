@@ -13,6 +13,7 @@ import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { TagInput } from '../components/TagInput';
+import { useToast } from '../components/Toast';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
@@ -77,6 +78,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export function Menu() {
+  const toast = useToast();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(null);
@@ -319,19 +321,29 @@ export function Menu() {
     } else {
       resetImageState(undefined);
       setMode('view');
+      toast(mode === 'edit' ? `${name} saved` : `${name} added to the menu`);
     }
   }
 
   /** Saves a partial change straight from the detail view (no Edit form). */
-  async function patchItem(item: MenuItem, updates: Partial<MenuItem>) {
+  async function patchItem(item: MenuItem, updates: Partial<MenuItem>, done?: { message: string; undo?: Partial<MenuItem> }) {
     try {
       await updateMenuItem(item._id, updates);
       await load();
+      if (done) {
+        toast(done.message, done.undo && { action: { label: 'Undo', onClick: () => patchItem(item, done.undo!, { message: 'Undone' }) } });
+      }
     } catch (err) {
-      setListError(errorMessage(err, 'Could not update the item.'));
+      toast(errorMessage(err, 'Could not update the item.'), { kind: 'error' });
     }
   }
-  const toggleAvailable = (item: MenuItem) => patchItem(item, { available: item.available === false });
+  function toggleAvailable(item: MenuItem) {
+    const nowAvailable = item.available === false;
+    patchItem(item, { available: nowAvailable }, {
+      message: nowAvailable ? `${item.name} is back on sale` : `${item.name} marked 86'd`,
+      undo: { available: !nowAvailable },
+    });
+  }
 
   /** Pin/tags edits made in the detail view, held until "Save" so a stray
    * click never writes to the catalog. Reset whenever the selection changes. */
@@ -341,7 +353,7 @@ export function Menu() {
   async function saveGridDraft(item: MenuItem) {
     if (!gridDraft) return;
     setGridSaving(true);
-    await patchItem(item, gridDraft);
+    await patchItem(item, gridDraft, { message: 'Cashier grid updated' });
     setGridSaving(false);
     setGridDraft(null);
   }
@@ -350,6 +362,7 @@ export function Menu() {
   // Runs inside ConfirmModal, which shows the error and stays open on a throw.
   async function deleteItem(item: MenuItem) {
     await deleteMenuItem(item._id);
+    toast(`${item.name} deleted`);
     if (selectedId === item._id) {
       setSelectedId(null);
       setMode(null);

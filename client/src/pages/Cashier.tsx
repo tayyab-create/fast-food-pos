@@ -8,6 +8,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { PayModal } from '../components/PayModal';
+import { useToast } from '../components/Toast';
 import type { Discount, MenuItem, Order, OrderItem, OrderType, PaymentMethod } from '../types';
 
 const ALL = 'All';
@@ -58,6 +59,7 @@ function newId(): string {
 }
 
 export function Cashier() {
+  const toast = useToast();
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [popular, setPopular] = useState<string[]>([]);
@@ -167,6 +169,7 @@ export function Cashier() {
       { id: newId(), label, cart, discountType, discountValue, discountReason, urgent, orderNote, orderType },
     ]);
     applyCartState(EMPTY_CART);
+    toast(`Held: ${label}`);
   }
 
   function resumeOrder(held: HeldOrder) {
@@ -177,6 +180,7 @@ export function Cashier() {
   const [discardTarget, setDiscardTarget] = useState<HeldOrder | null>(null);
   function discardHeld(id: string) {
     setHeldOrders((prev) => prev.filter((h) => h.id !== id));
+    toast('Held order discarded');
   }
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);

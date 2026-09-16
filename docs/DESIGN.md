@@ -231,6 +231,23 @@ first.
   and Reports. Exists because a collapsed multi-select only shows
   `"N selected"`; the chips make the actual selection visible and one click
   to undo. Renders nothing when no filter is set.
+- **`ConfirmModal`** (`components/ConfirmModal.tsx`) — the app's one "are you
+  sure?" dialog, replacing `window.confirm`. Takes a question as `title`, a
+  `message` (a sentence, or a list of what's affected), `confirmLabel`,
+  optional `cancelLabel`, `danger` for a red confirm, and an `onConfirm` that
+  may be async: the dialog shows a spinner, closes itself on success and
+  stays open with the error on a throw. The safe button is focused first so
+  Enter never confirms by accident. Used for deleting a menu item and
+  discarding a held order.
+- **`ToastProvider` / `useToast()`** (`components/Toast.tsx`) — outcome
+  messages. `toast('Saved')` or `toast('Failed', { kind: 'error' })`, with
+  an optional `action: { label: 'Undo', onClick }`. One toast at a time,
+  bottom-centre, slides up and away (3s; 6s for errors or when it carries an
+  action). Rule of use: successes the screen doesn't already show (an item
+  saved, marked 86'd with Undo, a held order stashed), errors that aren't
+  about a specific field (server unreachable — Kitchen's poll reports once
+  and again when it recovers), and Undo for reversible actions (kitchen
+  status moves, 86'd). Routine steps stay quiet; field mistakes stay inline.
 - **`OrderDetailModal`** (`components/OrderDetailModal.tsx`) — the order
   detail/confirmation popup. Takes an `Order`, a `confirmed` flag (checkout
   confirmation vs. a plain history lookup), and an optional `onVoided`

@@ -116,6 +116,15 @@ numerals) to stand apart from the mono figures around it.
 - **Validation**: invalid fields get a danger-red border + tinted glow and
   an inline message directly under the label — errors explain what's
   needed, not just "invalid."
+- **Confirmations**: never the browser's `confirm()`. `ConfirmModal` asks
+  the question in the title, states the consequence in one sentence, lists
+  what's affected, and colours the destructive button red with the safe one
+  focused. Only for things that can't be undone; reversible actions get a
+  toast with Undo instead.
+- **Feedback**: outcomes the screen doesn't already show arrive as a single
+  dark toast at the bottom (green tick or red cross, three seconds, Undo
+  where the action is reversible). Field mistakes stay inline under the
+  field; page-level load failures stay inline where the content would be.
 - **Progress**: anything that waits on the network shows the `.spinner`
   ring (2px, current text colour, `.large` for veils) next to a verb in
   progress — "Saving…", "Placing order…", "Loading image…" — and the button

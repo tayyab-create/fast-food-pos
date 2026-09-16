@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/orders';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
+import { useToast } from '../components/Toast';
 import { VoidOrderModal } from '../components/VoidOrderModal';
 import type { Order, OrderStatus, OrderType } from '../types';
 
@@ -13,6 +14,13 @@ const NEXT_STATUS: Record<Status, OrderStatus> = {
   pending: 'preparing',
   preparing: 'ready',
   ready: 'completed',
+};
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending: 'Pending',
+  preparing: 'Preparing',
+  ready: 'Ready',
+  completed: 'Completed',
+  voided: 'Voided',
 };
 const NEXT_LABEL: Record<Status, string> = {
   pending: 'Start Preparing',
@@ -51,8 +59,10 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export function Kitchen() {
+  const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // Polling runs every 3s; report a failure once and stay quiet until it recovers.
+  const pollFailed = useRef(false);
   const [search, setSearch] = useState('');
   const [visible, setVisible] = useState<Set<Status>>(new Set(['pending', 'preparing', 'ready']));
   const [orderTypeFilters, setOrderTypeFilters] = useState<string[]>([]);
@@ -67,9 +77,11 @@ export function Kitchen() {
     try {
       const all = await getOrders();
       setOrders(all.filter((o) => o.status !== 'completed' && o.status !== 'voided'));
-      setError(null);
+      if (pollFailed.current) toast('Back in touch with the server.');
+      pollFailed.current = false;
     } catch (err) {
-      setError(errorMessage(err, 'Could not refresh orders.'));
+      if (!pollFailed.current) toast(errorMessage(err, 'Could not refresh orders.'), { kind: 'error' });
+      pollFailed.current = true;
     } finally {
       inFlight.current = false;
     }
@@ -81,14 +93,22 @@ export function Kitchen() {
     return () => clearInterval(id);
   }, []);
 
-  async function advance(order: Order, status: OrderStatus) {
+  async function setStatus(order: Order, status: OrderStatus, undoFrom?: OrderStatus) {
     try {
       await updateOrderStatus(order._id, status);
       await load();
+      if (undoFrom) {
+        toast(`#${order.orderNumber} → ${STATUS_LABEL[status]}`, {
+          action: { label: 'Undo', onClick: () => setStatus(order, undoFrom) },
+        });
+      }
     } catch (err) {
-      setError(errorMessage(err, 'Could not update the order.'));
+      toast(errorMessage(err, 'Could not update the order.'), { kind: 'error' });
     }
   }
+  // Routine moves are quiet except for an Undo — a cook advancing forty
+  // tickets an hour doesn't need forty confirmations.
+  const advance = (order: Order, status: OrderStatus) => setStatus(order, status, order.status);
 
   function toggleColumn(status: Status) {
     setVisible((prev) => {
@@ -147,8 +167,6 @@ export function Kitchen() {
         }))}
         onClearAll={() => setOrderTypeFilters([])}
       />
-
-      {error && <p className="field-error" role="alert">{error}</p>}
 
       <div className="kds-board">
         {visibleColumns.length === 0 && <p className="kds-empty">No columns selected — choose one above.</p>}
