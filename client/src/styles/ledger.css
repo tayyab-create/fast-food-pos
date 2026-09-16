@@ -1434,3 +1434,11 @@ button .spinner { margin-right: 8px; }
 .row-pin { display: inline-flex; color: var(--forest-dark); margin-right: 6px; vertical-align: -1px; }
 .grid-draft-actions { display: flex; gap: 8px; margin-top: 10px; }
 .grid-draft-actions button { font-size: 12.5px; padding: 6px 14px; }
+
+/* Confirmation dialog */
+.confirm-modal { max-width: 400px; }
+.confirm-message { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin-bottom: 18px; }
+.confirm-message p { margin: 0 0 8px; }
+.confirm-message p:last-child { margin-bottom: 0; }
+.confirm-list { margin: 0 0 8px; padding-left: 18px; }
+.confirm-list li { margin-bottom: 2px; color: var(--ink); }

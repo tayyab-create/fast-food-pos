@@ -11,6 +11,7 @@ import {
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { TagInput } from '../components/TagInput';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
@@ -345,18 +346,10 @@ export function Menu() {
     setGridDraft(null);
   }
 
-  async function confirmDelete(item: MenuItem) {
-    const affected = combosContaining(item);
-    const message = affected.length
-      ? `"${item.name}" is part of: ${affected.join(', ')}. Deleting it will remove it from those combos. Delete anyway?`
-      : `Delete "${item.name}"? This can't be undone.`;
-    if (!window.confirm(message)) return;
-    try {
-      await deleteMenuItem(item._id);
-    } catch (err) {
-      setListError(errorMessage(err, 'Could not delete the item.'));
-      return;
-    }
+  const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
+  // Runs inside ConfirmModal, which shows the error and stays open on a throw.
+  async function deleteItem(item: MenuItem) {
+    await deleteMenuItem(item._id);
     if (selectedId === item._id) {
       setSelectedId(null);
       setMode(null);
@@ -731,7 +724,7 @@ export function Menu() {
               <button type="button" className="ghost" onClick={() => toggleAvailable(selected)}>
                 {selected.available === false ? 'Mark available' : "Mark 86'd"}
               </button>
-              <button type="button" className="ghost danger" onClick={() => confirmDelete(selected)}>Delete</button>
+              <button type="button" className="ghost danger" onClick={() => setDeleteTarget(selected)}>Delete</button>
             </div>
           </>
         ) : (
@@ -741,6 +734,30 @@ export function Menu() {
           </>
         )}
       </div>
+
+      {deleteTarget && (
+        <ConfirmModal
+          title={`Delete ${deleteTarget.name}?`}
+          danger
+          confirmLabel="Delete item"
+          cancelLabel="Keep item"
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteItem(deleteTarget)}
+          message={
+            combosContaining(deleteTarget).length ? (
+              <>
+                <p>It's part of these combos and will be removed from them:</p>
+                <ul className="confirm-list">
+                  {combosContaining(deleteTarget).map((name) => <li key={name}>{name}</li>)}
+                </ul>
+                <p>This can't be undone.</p>
+              </>
+            ) : (
+              <p>It disappears from the Cashier grid and this list. This can't be undone.</p>
+            )
+          }
+        />
+      )}
     </div>
   );
 }

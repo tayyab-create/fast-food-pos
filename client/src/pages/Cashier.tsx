@@ -4,6 +4,7 @@ import { createOrder } from '../api/orders';
 import { getPopularItems } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { isMoneyInput, roundMoney } from '../money';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { PayModal } from '../components/PayModal';
@@ -173,8 +174,8 @@ export function Cashier() {
     setHeldOrders((prev) => prev.filter((h) => h.id !== held.id));
   }
 
+  const [discardTarget, setDiscardTarget] = useState<HeldOrder | null>(null);
   function discardHeld(id: string) {
-    if (!window.confirm('Discard this held order?')) return;
     setHeldOrders((prev) => prev.filter((h) => h.id !== id));
   }
 
@@ -331,7 +332,7 @@ export function Cashier() {
             {heldOrders.map((held) => (
               <div className="held-order-chip" key={held.id}>
                 <button type="button" className="ghost" onClick={() => resumeOrder(held)}>{held.label}</button>
-                <button type="button" className="icon" aria-label="Discard held order" onClick={() => discardHeld(held.id)}>×</button>
+                <button type="button" className="icon" aria-label="Discard held order" onClick={() => setDiscardTarget(held)}>×</button>
               </div>
             ))}
           </div>
@@ -509,6 +510,18 @@ export function Cashier() {
       )}
 
       {showPay && <PayModal total={total} onConfirm={checkout} onClose={() => setShowPay(false)} />}
+
+      {discardTarget && (
+        <ConfirmModal
+          title="Discard held order?"
+          danger
+          confirmLabel="Discard"
+          cancelLabel="Keep it"
+          message={<p>"{discardTarget.label}" is only saved on this till. Discarding it can't be undone.</p>}
+          onClose={() => setDiscardTarget(null)}
+          onConfirm={() => discardHeld(discardTarget.id)}
+        />
+      )}
 
       {placedOrder && (
         <OrderDetailModal order={placedOrder} onClose={() => setPlacedOrder(null)} confirmed closeLabel="New order" />
