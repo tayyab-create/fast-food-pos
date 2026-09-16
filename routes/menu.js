@@ -29,6 +29,7 @@ router.post('/', menuController.create);
 router.put('/:id', menuController.update);
 router.delete('/:id', menuController.remove);
 router.post('/:id/image', handleImageUpload, menuController.uploadImage);
+router.post('/:id/image-url', menuController.uploadImageFromUrl);
 router.delete('/:id/image', menuController.removeImage);
 
 module.exports = router;

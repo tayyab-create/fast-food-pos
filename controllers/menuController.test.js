@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validateFields } = require('./menuController');
+const { validateFields, isPrivateAddress } = require('./menuController');
 
 test('validateFields accepts a well-formed item', () => {
   assert.equal(validateFields({ name: 'Cheeseburger', price: 5.99, category: 'Burgers' }), null);
@@ -56,4 +56,26 @@ test('validateFields accepts well-formed combo items and rejects bad ids, quanti
   assert.ok(validateFields({ comboItems: [{ itemId: id, qty: 1.5 }] }));
   assert.ok(validateFields({ comboItems: [{ itemId: id, qty: 1, variant: 7 }] }));
   assert.ok(validateFields({ comboItems: { itemId: id, qty: 1 } }));
+});
+
+test('validateFields enforces tag shape, count and length', () => {
+  assert.equal(validateFields({ tags: ['New', 'Spicy'] }), null);
+  assert.equal(validateFields({ tags: 'New' }), 'Tags must be a list of words');
+  assert.equal(validateFields({ tags: ['a', 'b', 'c', 'd'] }), 'At most 3 tags');
+  assert.equal(validateFields({ tags: ['   '] }), 'Each tag must be 1–16 characters');
+  assert.equal(validateFields({ tags: ['x'.repeat(17)] }), 'Each tag must be 1–16 characters');
+});
+
+test('isPrivateAddress blocks loopback, link-local and RFC 1918 ranges only', () => {
+  for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.0.9', '172.16.0.1', '172.31.255.255', '169.254.1.1', '0.0.0.0']) assert.equal(isPrivateAddress(ip, 4), true, ip);
+  for (const ip of ['8.8.8.8', '172.32.0.1', '11.0.0.1', '193.168.0.1']) assert.equal(isPrivateAddress(ip, 4), false, ip);
+  assert.equal(isPrivateAddress('::1', 6), true);
+  assert.equal(isPrivateAddress('fd00::1', 6), true);
+  assert.equal(isPrivateAddress('2606:4700::1111', 6), false);
+});
+
+test('isPrivateAddress unwraps IPv4-mapped IPv6 and checks the embedded address', () => {
+  assert.equal(isPrivateAddress('::ffff:127.0.0.1', 6), true);
+  assert.equal(isPrivateAddress('::ffff:10.0.0.5', 6), true);
+  assert.equal(isPrivateAddress('::ffff:8.8.8.8', 6), false);
 });

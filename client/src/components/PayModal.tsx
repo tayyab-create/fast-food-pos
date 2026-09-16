@@ -68,34 +68,45 @@ export function PayModal({ total, onConfirm, onClose }: PayModalProps) {
 
       {method === 'cash' ? (
         <div className="pay-cash-section">
-          <span className="pay-amount-field">
-            <span className="discount-unit">$</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              className="num"
-              autoFocus
-              placeholder="0.00"
-              aria-label="Amount tendered"
-              value={tenderedStr}
+          <div className="pay-tender-row">
+            <span className="pay-amount-field">
+              <span className="discount-unit">$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="num"
+                autoFocus
+                placeholder="0.00"
+                aria-label="Amount tendered"
+                value={tenderedStr}
+                disabled={submitting}
+                onChange={(e) => isMoneyInput(e.target.value) && setTenderedStr(e.target.value)}
+              />
+            </span>
+            <button
+              type="button"
+              className="ghost"
               disabled={submitting}
-              onChange={(e) => isMoneyInput(e.target.value) && setTenderedStr(e.target.value)}
-            />
-          </span>
+              title="Customer paid the exact amount"
+              onClick={() => setTenderedStr(total.toFixed(2))}
+            >
+              Exact
+            </button>
+          </div>
           <div className={`pay-change-row${tenderedStr ? (cashReady ? ' positive' : ' negative') : ''}`}>
             <span>Change due</span>
             <span className="num">${tenderedStr ? Math.max(0, changeDue).toFixed(2) : '0.00'}</span>
           </div>
           <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
-            {submitting ? 'Placing order…' : 'Confirm payment'}
+            {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
           </button>
         </div>
       ) : (
         <div className="pay-card-section">
           <p className="hint">Process the card on the terminal, then confirm here.</p>
           <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
-            {submitting ? 'Placing order…' : 'Confirm payment'}
+            {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
           </button>
         </div>
       )}

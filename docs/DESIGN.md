@@ -29,7 +29,7 @@ client/                 Vite + React + TypeScript SPA
     pages/
       Cashier.tsx             Menu grid + cart + checkout, held orders, payment method (/)
       Kitchen.tsx             Order queue, polls every 3s (/kitchen)
-      Reports.tsx             Daily stats + full order history, search by order #/item/discount reason (/reports)
+      Reports.tsx             Range-scoped stats + order history, search by order #/item/discount reason (/reports)
       Menu.tsx                Menu CRUD (/menu)
     components/
       LedgerTable.tsx         Shared ruled-row table primitive
@@ -37,7 +37,7 @@ client/                 Vite + React + TypeScript SPA
       Dropdown.tsx            Custom listbox (replaces native <select> app-wide) — scroll-capped, styleable;
                                see "Reusable components" below
       Combobox.tsx            Free-text input with type-ahead suggestions, never forces a match
-      DatePicker.tsx          Custom calendar (replaces native <input type="date">) — same
+      DatePicker.tsx          Custom calendar + DateRangePicker (replaces native <input type="date">) — same
                                reasoning as Dropdown; see "Reusable components" below
       Modal.tsx               The one dialog shell (overlay, panel, title, × button, Escape)
       PayModal.tsx            Tender step (Cash/Card, amount tendered, change due); owns its
@@ -75,6 +75,8 @@ client/                 Vite + React + TypeScript SPA
                          // contain another combo, and ordering one fails if any ingredient is 86'd.
   image?: string,                                   // "/uploads/<itemId>.jpg?v=<timestamp>", undefined if none
   available?: boolean,   // default true; false = "86'd" — hidden from Cashier, rejected server-side, kept in Menu admin
+  pinned?: boolean,      // default false; pinned items sort first on the Cashier grid with a pin mark
+  tags?: string[],       // ≤3 labels of ≤16 chars ("New", "Spicy") shown as chips on the Cashier tile
 }
 ```
 
@@ -117,15 +119,17 @@ client/                 Vite + React + TypeScript SPA
 | Method | Path              | Body                                   | Response              |
 |--------|-------------------|-----------------------------------------|------------------------|
 | GET    | /api/menu         | —                                       | MenuItem[]             |
-| POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems?, available? } | MenuItem (201) |
-| PUT    | /api/menu/:id     | { name?, price?, category?, variants?, isCombo?, comboItems?, available? } | MenuItem |
+| POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems?, available?, pinned?, tags? } | MenuItem (201) |
+| PUT    | /api/menu/:id     | { name?, price?, category?, variants?, isCombo?, comboItems?, available?, pinned?, tags? } | MenuItem |
 | DELETE | /api/menu/:id     | —                                       | 204                    |
 | POST   | /api/menu/:id/image | multipart, field `image` (jpeg/png/webp, ≤5MB) | MenuItem |
 | DELETE | /api/menu/:id/image | —                                     | MenuItem               |
 | GET    | /api/orders       | ?status= (optional filter)              | Order[]                |
 | POST   | /api/orders       | { items: OrderItem[], paymentMethod, orderType?, amountTendered?, discount?, urgent?, note? } | Order (201) |
 | PATCH  | /api/orders/:id   | { status, reason? } — `reason` required (≤200 chars) when status is `voided` | Order |
-| GET    | /api/reports/daily| —                                       | { orderCount, revenue, topItems: [{name, qty}] } |
+| POST   | /api/menu/:id/image-url | { url } (public http(s) image, ≤5MB; server downloads it and stores it exactly like an upload — loopback/LAN hosts and redirects are refused) | MenuItem |
+| GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], byPaymentMethod, byOrderType, byHour[24] } — voided orders are excluded from every revenue figure and counted separately |
+| GET    | /api/reports/popular | —                                    | string[] — names of the 5 best-selling items over the last 7 days (the Cashier's "Popular" badge) |
 
 ## Visual style
 See [`DESIGN_LANGUAGE.md`](DESIGN_LANGUAGE.md) for the full token/type/component
@@ -139,16 +143,25 @@ stays about architecture and data shapes.
   picker on tap; `isCombo` items show their contents as a subtext line and,
   when the combo undercuts its contents' separate prices, that sum struck
   through beside the combo price. Tiles with an `image` show it above the
-  name/price. The order ledger sheet
-  on the right shows a Dine-in/Takeout/Delivery order-type toggle above the
+  name/price. `pinned` items sort to the front of the grid with a pin mark in
+  the tile corner; a tile's `tags` and a computed "Popular" badge (item is in
+  `GET /api/reports/popular`) show as small chips above the name. The order
+  ledger sheet on the right shows the order's state in its header — "Order",
+  the same red "Urgent" tag the Kitchen ticket shows when flagged, and the
+  item count — with the controls beneath the cart lines: "⋯ More" and a
+  "Mark urgent" toggle side by side (status in the header, control in the
+  options row, so neither competes with the other). Above the cart lines is
+  a Dine-in/Takeout/Delivery order-type toggle (Dine-in by default) above the
   cart lines (qty, name, line total, remove, optional per-item note), a
   collapsed "⋯ More" panel (a dot badge shows when something inside is set)
-  holding the less-common per-order options — "mark urgent", an order note,
-  and a Percent/Flat discount with an optional reason label — and a
+  holding the less-common per-order options — an order note and a
+  Percent/Flat discount with an optional reason label — and a
   Subtotal → Discount → Total block (Total as the one inverted/emphasized
   row). Checkout is a single "Pay" button that opens a payment modal with an
-  amount-due display and Cash/Card tabs — Cash shows an amount-tendered field
-  and live change-due readout (gated on tendering enough), Card is a single
+  amount-due display (set in the display serif, the one place outside a page
+  title it appears) and Cash/Card tabs — Cash shows an amount-tendered field
+  with an "Exact" shortcut and live change-due readout (gated on tendering
+  enough), Card is a single
   confirm — matching how Square/Toast separate payment from cart-building
   rather than picking it inline. A rejected order (e.g. an item 86'd since it
   was added) is shown inside the modal and the cart is kept. Held orders keep
@@ -163,20 +176,35 @@ stays about architecture and data shapes.
   callout, itemized lines with per-item notes and combo contents, one button
   to advance to the next status, plus a Void action). Urgent orders sort to
   the top of their column. Polls `/api/orders` every 3 seconds.
-- **Reports (`/reports`)**: today's order count and revenue as ledger stat
-  lines, a ruled table of top-selling items by quantity, and a searchable,
-  sortable, paginated Order History table (search by order #/item/discount
-  reason; multi-select Status and Order type filters; a From/To date-range
-  pair matched as inclusive whole days against `createdAt`; a "Clear filters"
-  button appears once any filter is active). Clicking a row opens
+- **Reports (`/reports`)**: one `DateRangePicker` (default today; presets
+  for the last 7 days, this month and "All time"; future days disabled)
+  scopes the whole page. The summary shows ledger stat lines — orders,
+  revenue, average order, discounts given, voided count/value — then ruled
+  tables of top-selling items by quantity, sales by payment method and by
+  order type, and an orders-by-hour bar strip; beside them a searchable,
+  sortable, paginated Order History table for the same range (search by
+  order #/item/discount reason; multi-select Status and Order type filters
+  listed as removable `ActiveFilters` chips). Clicking a row opens
   `OrderDetailModal` (with a Void action and the status-history timeline).
-- **Menu (`/menu`)**: a search bar + multi-select category filter above a
-  ledger table of menu items (each row shows a 32px thumbnail when it has an
-  `image`). Clicking a row shows its details in a sticky sidebar (Edit/Mark
+- **Menu (`/menu`)**: a search bar + multi-select Category, Status
+  (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind
+  (Single/Sizes/Combo) and Tag filters, with the active ones listed as
+  `ActiveFilters` chips, above a ledger table of menu items, sortable by
+  item, category, price (lowest size price for sized items) and kind (each row shows
+  a 32px thumbnail when it has an `image`, and a pin mark before the name
+  when `pinned`). The detail sidebar has a "Cashier grid" section with the
+  pin checkbox and a `TagInput`; edits there are held as a draft and written
+  by a Save button (with Discard) that appears only once something changed,
+  so no stray click reaches the catalog. Clicking a row shows its details in a sticky sidebar (Edit/Mark
   86'd/Delete actions, with a confirm dialog before delete); "+ Add item" or
   Edit opens a form in the same sidebar — name/category/price fields (a
   free-text-with-suggestions Combobox for category, unless "This is a combo"
-  is checked, which locks category to "Combo"), an "Available for sale"
+  is checked, which locks category to "Combo"), a photo drop zone with an
+  "or paste an image URL" field beneath it (the preview renders straight
+  from the pasted URL — Save is disabled with a "Loading image…" state until
+  the preview has loaded or failed; on save the server downloads and stores
+  it via `POST /api/menu/:id/image-url`), a "Pin to the top of the Cashier
+  grid" checkbox and a `TagInput` Tags field, an "Available for sale"
   checkbox, a repeatable size-row editor for variants, a searchable checklist
   to build combos from existing items (`ComboPicker`: a per-item size picker
   when the item has variants, a qty field per selected item, and a running
@@ -197,6 +225,12 @@ first.
   callbacks, and optional pagination (`pageSize` + `pageSizeOptions`, the
   latter rendered via `Dropdown`). Used by Reports' order history and Menu's
   item list.
+- **`ActiveFilters`** (`components/ActiveFilters.tsx`) — a row of removable
+  chips (`{ label, onRemove }[]` plus `onClearAll`) summarising every filter
+  currently narrowing a list, rendered under the filter bar on Menu, Kitchen
+  and Reports. Exists because a collapsed multi-select only shows
+  `"N selected"`; the chips make the actual selection visible and one click
+  to undo. Renders nothing when no filter is set.
 - **`OrderDetailModal`** (`components/OrderDetailModal.tsx`) — the order
   detail/confirmation popup. Takes an `Order`, a `confirmed` flag (checkout
   confirmation vs. a plain history lookup), and an optional `onVoided`
@@ -237,6 +271,15 @@ first.
   and hides the list entirely once nothing matches — never forces a
   selection, whatever's typed is the value on save. Used by Menu's item-form
   Category field.
+- **`TagInput`** (`components/TagInput.tsx`) — a multi-select combobox:
+  chosen values render as removable pills in front of a type-ahead field,
+  and the list beneath works like `MultiSelectDropdown` (every known value
+  with a check, click to tick or untick) while still accepting anything
+  typed (Enter, comma or blur adds it). Once `max` values are chosen the
+  unticked options and the text field are disabled until one is removed.
+  Takes `{ value: string[], options, onChange, max?, maxLength?,
+  placeholder?, disabled? }`. Used for menu-item tags in both the edit form
+  and the detail view.
 - **`DatePicker`** (`components/DatePicker.tsx`) — replaces native
   `<input type="date">`, whose calendar popup is rendered by the OS/browser
   and can't be restyled with CSS in any browser (the same limitation that
@@ -246,8 +289,13 @@ first.
   plain `"YYYY-MM-DD"` string (or `""` for unset), so it's a drop-in
   replacement for a native date input's value. Also exports
   `isoDateToLocalDate()` — use it (not `new Date(iso)`, which parses a bare
-  date as UTC) whenever a picked date is compared against timestamps. Used by
-  Reports' Order History date-range filter.
+  date as UTC) whenever a picked date is compared against timestamps. An
+  optional `max` (ISO) disables later days and the next-month arrow past it.
+  - **`DateRangePicker`** (same file) shares the month grid: the first click
+    sets one end, the second the other (either order), with the span tinted
+    as you hover; footer presets for Today, Last 7 days, This month and All
+    time (both ends `""`). Value is `{ from, to }`, formatted for the toggle
+    by the exported `formatRange()`. Used by Reports to scope the page.
 - **`Modal`** (`components/Modal.tsx`) — the dialog shell every popup uses:
   overlay, panel, `role="dialog"`, a title, a × close button, and closing on
   overlay click or Escape (only the topmost modal reacts to Escape, so a

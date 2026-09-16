@@ -16,4 +16,8 @@ module.exports = mongoose.model('MenuItem', new mongoose.Schema({
   }],
   image: String,
   available: { type: Boolean, default: true },
+  // Cashier tile ordering/labels: pinned items sort first; tags are short
+  // free-text labels ("New", "Spicy") shown on the tile.
+  pinned: { type: Boolean, default: false },
+  tags: [String],
 }));

@@ -1,30 +1,33 @@
 import { useEffect, useState } from 'react';
-import { getDailyReport } from '../api/reports';
+import { getSummaryReport } from '../api/reports';
 import { getOrders } from '../api/orders';
-import { DatePicker, isoDateToLocalDate } from '../components/DatePicker';
+import { ActiveFilters } from '../components/ActiveFilters';
+import { DateRangePicker, formatRange, isoDateToLocalDate, toISODate, type DateRange } from '../components/DatePicker';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
 import { OrderDetailModal } from '../components/OrderDetailModal';
-import type { DailyReport, Order, OrderStatus, OrderType } from '../types';
+import type { SummaryReport, Order, OrderStatus, OrderType, ReportBucket } from '../types';
 
 const STATUSES: OrderStatus[] = ['pending', 'preparing', 'ready', 'completed', 'voided'];
 const ORDER_TYPES: OrderType[] = ['dine-in', 'takeout', 'delivery'];
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TODAY = toISODate(new Date());
 
 export function Reports() {
-  const [report, setReport] = useState<DailyReport | null>(null);
+  const [report, setReport] = useState<SummaryReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  /** Range the whole page covers — the summary and the history table alike. Both ends empty = all time. */
+  const [range, setRange] = useState<DateRange>(() => ({ from: TODAY, to: TODAY }));
 
   async function load() {
     try {
-      const [daily, all] = await Promise.all([getDailyReport(), getOrders()]);
+      const [daily, all] = await Promise.all([getSummaryReport(range.from, range.to), getOrders()]);
       setReport(daily);
       setOrders([...all].sort((a, b) => b.orderNumber - a.orderNumber));
       setLoadError(null);
@@ -35,12 +38,13 @@ export function Reports() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load reads range; refetch when it changes
+  }, [range]);
 
   // Inclusive whole days in *local* time: from local midnight of fromDate up
   // to (not including) local midnight the day after toDate.
-  const fromTime = isoDateToLocalDate(fromDate)?.getTime() ?? -Infinity;
-  const toTime = (isoDateToLocalDate(toDate)?.getTime() ?? Infinity) + DAY_MS;
+  const fromTime = isoDateToLocalDate(range.from)?.getTime() ?? -Infinity;
+  const toTime = (isoDateToLocalDate(range.to)?.getTime() ?? Infinity) + DAY_MS;
 
   const filtered = orders.filter((o) => {
     const q = search.trim().toLowerCase();
@@ -57,43 +61,102 @@ export function Reports() {
     return matchesSearch && matchesStatus && matchesType && matchesRange;
   });
 
-  const filtersActive = statusFilters.length > 0 || typeFilters.length > 0 || fromDate || toDate;
+  const filtersActive = statusFilters.length > 0 || typeFilters.length > 0;
 
   if (loadError) return <p className="field-error" role="alert">{loadError}</p>;
   if (!report) return <p>Loading…</p>;
 
   const topItems = report.topItems.slice(0, 10);
+  const dayLabel = range.from === TODAY && range.to === TODAY ? 'today' : formatRange(range).toLowerCase() || 'all time';
+  const peakCount = Math.max(...report.byHour.map((h) => h.count));
+  const bucketRows = (buckets: Partial<Record<string, ReportBucket>>, label: (k: string) => string) =>
+    Object.entries(buckets).map(([key, b]) => ({ key, label: label(key), count: b!.count, revenue: b!.revenue }));
 
   return (
     <div className="reports-page">
+      <div className="list-header">
+        <div className="section-header">Summary</div>
+        <DateRangePicker value={range} onChange={setRange} max={TODAY} placeholder="All time" />
+      </div>
+
       <div className="stats-row">
         <div className="stat">
           <div className="value">{report.orderCount}</div>
-          <div className="label">Orders Today</div>
+          <div className="label">Orders</div>
         </div>
         <div className="stat">
           <div className="value">${report.revenue.toFixed(2)}</div>
-          <div className="label">Revenue Today</div>
+          <div className="label">Revenue</div>
+        </div>
+        <div className="stat">
+          <div className="value">${report.avgOrder.toFixed(2)}</div>
+          <div className="label">Avg order</div>
+        </div>
+        <div className="stat">
+          <div className="value">${report.discountTotal.toFixed(2)}</div>
+          <div className="label">Discounts given</div>
+        </div>
+        <div className="stat">
+          <div className="value">{report.voidedCount}</div>
+          <div className="label">Voided · ${report.voidedTotal.toFixed(2)}</div>
         </div>
       </div>
 
       <div className="reports-columns">
         <div className="reports-col reports-col-narrow">
-          <div className="section-header">Top Items Today</div>
+          <div className="section-header">Top items · {dayLabel}</div>
           <LedgerTable
             columns={[
               { header: 'Item', render: (i) => i.name, sortValue: (i) => i.name },
-              { header: 'Qty Sold', numeric: true, render: (i) => i.qty, sortValue: (i) => i.qty },
+              { header: 'Qty', numeric: true, render: (i) => i.qty, sortValue: (i) => i.qty },
             ]}
             rows={topItems}
             rowKey={(i) => i.name}
-            emptyMessage="No sales yet today."
+            emptyMessage={`No sales ${dayLabel}.`}
           />
+
+          <div className="section-header">By payment</div>
+          <LedgerTable
+            columns={[
+              { header: 'Method', render: (r) => r.label },
+              { header: 'Orders', numeric: true, render: (r) => r.count },
+              { header: 'Revenue', numeric: true, render: (r) => `$${r.revenue.toFixed(2)}` },
+            ]}
+            rows={bucketRows(report.byPaymentMethod, (k) => (k === 'cash' ? 'Cash' : 'Card'))}
+            rowKey={(r) => r.key}
+            emptyMessage={`No sales ${dayLabel}.`}
+          />
+
+          <div className="section-header">By order type</div>
+          <LedgerTable
+            columns={[
+              { header: 'Type', render: (r) => r.label },
+              { header: 'Orders', numeric: true, render: (r) => r.count },
+              { header: 'Revenue', numeric: true, render: (r) => `$${r.revenue.toFixed(2)}` },
+            ]}
+            rows={bucketRows(report.byOrderType, (k) => k)}
+            rowKey={(r) => r.key}
+            emptyMessage={`No sales ${dayLabel}.`}
+          />
+
+          <div className="section-header">Orders by hour</div>
+          {peakCount === 0 ? (
+            <p className="hint">No sales {dayLabel}.</p>
+          ) : (
+            <ol className="hour-bars" aria-label="Orders by hour">
+              {report.byHour.map((h, hour) => (
+                <li key={hour} title={`${hour}:00 — ${h.count} order${h.count === 1 ? '' : 's'}, $${h.revenue.toFixed(2)}`}>
+                  <span className="hour-bar" style={{ height: `${(h.count / peakCount) * 100}%` }} />
+                  <span className="hour-label">{hour % 6 === 0 ? `${hour}` : ''}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
 
         <div className="reports-col reports-col-wide">
           <div className="list-header">
-            <div className="section-header">Order History</div>
+            <div className="section-header">Order history · {dayLabel}</div>
             <input
               type="text"
               placeholder="Search by order #, item, discount or void reason…"
@@ -116,26 +179,18 @@ export function Reports() {
               onChange={setTypeFilters}
               placeholder="All order types"
             />
-            <div className="date-range-field">
-              <DatePicker value={fromDate} onChange={setFromDate} placeholder="From" />
-              <span className="muted-text">to</span>
-              <DatePicker value={toDate} onChange={setToDate} placeholder="To" />
-            </div>
-            {filtersActive && (
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  setStatusFilters([]);
-                  setTypeFilters([]);
-                  setFromDate('');
-                  setToDate('');
-                }}
-              >
-                Clear filters
-              </button>
-            )}
           </div>
+
+          <ActiveFilters
+            filters={[
+              ...statusFilters.map((s) => ({ label: `Status: ${s}`, onRemove: () => setStatusFilters(statusFilters.filter((x) => x !== s)) })),
+              ...typeFilters.map((t) => ({ label: `Type: ${t}`, onRemove: () => setTypeFilters(typeFilters.filter((x) => x !== t)) })),
+            ]}
+            onClearAll={() => {
+              setStatusFilters([]);
+              setTypeFilters([]);
+            }}
+          />
 
           <LedgerTable
             columns={[

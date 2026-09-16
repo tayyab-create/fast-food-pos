@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/orders';
+import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { VoidOrderModal } from '../components/VoidOrderModal';
 import type { Order, OrderStatus, OrderType } from '../types';
@@ -138,6 +139,14 @@ export function Kitchen() {
           placeholder="All order types"
         />
       </div>
+
+      <ActiveFilters
+        filters={orderTypeFilters.map((t) => ({
+          label: `Type: ${t}`,
+          onRemove: () => setOrderTypeFilters(orderTypeFilters.filter((x) => x !== t)),
+        }))}
+        onClearAll={() => setOrderTypeFilters([])}
+      />
 
       {error && <p className="field-error" role="alert">{error}</p>}
 

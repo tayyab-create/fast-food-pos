@@ -65,7 +65,7 @@ export function VoidOrderModal({ order, onClose, onVoided }: VoidOrderModalProps
       <div className="checkout-row">
         <button type="button" className="ghost" disabled={submitting} onClick={onClose}>Keep order</button>
         <button type="button" className="primary danger" style={{ flex: 1 }} disabled={submitting} onClick={confirm}>
-          {submitting ? 'Voiding…' : 'Void order'}
+          {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Voiding…' : 'Void order'}
         </button>
       </div>
     </Modal>

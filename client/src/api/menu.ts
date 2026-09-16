@@ -30,3 +30,7 @@ export async function deleteMenuItemImage(id: string): Promise<MenuItem> {
   }
   return res.json();
 }
+
+/** Server downloads the image at `url`, normalises it like an upload, and stores it. */
+export const setMenuItemImageUrl = (id: string, url: string) =>
+  api.post<MenuItem>(`/menu/${id}/image-url`, { url });

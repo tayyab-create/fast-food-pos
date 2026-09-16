@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   createMenuItem,
+  setMenuItemImageUrl,
   deleteMenuItem,
   deleteMenuItemImage,
   getMenu,
@@ -10,6 +11,8 @@ import {
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
+import { TagInput } from '../components/TagInput';
+import { ActiveFilters } from '../components/ActiveFilters';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
 import { isMoneyInput } from '../money';
@@ -18,6 +21,16 @@ import type { ComboEntry, MenuItem, Variant } from '../types';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const COMBO_CATEGORY = 'Combo';
+const FLAG_OPTIONS = ['Available', "86'd", 'Pinned'];
+const KIND_OPTIONS = ['Single', 'Sizes', 'Combo'];
+// Mirror the server's limits in menuController.validateFields.
+const MAX_TAGS = 3;
+const MAX_TAG_LENGTH = 16;
+
+/** What a customer pays at minimum — the 'from' price for sized items. */
+const lowestPrice = (i: MenuItem) => (i.variants?.length ? Math.min(...i.variants.map((v) => v.price)) : i.price);
+const kindOf = (i: MenuItem) => (i.isCombo ? 'Combo' : i.variants?.length ? 'Sizes' : 'Single');
+const flagsOf = (i: MenuItem) => [i.available === false ? "86'd" : 'Available', ...(i.pinned ? ['Pinned'] : [])];
 
 interface FormState {
   name: string;
@@ -30,6 +43,8 @@ interface FormState {
   isCombo: boolean;
   comboItems: ComboEntry[];
   available: boolean;
+  pinned: boolean;
+  tags: string[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -42,9 +57,19 @@ const EMPTY_FORM: FormState = {
   isCombo: false,
   comboItems: [],
   available: true,
+  pinned: false,
+  tags: [],
 };
 
 type Mode = 'view' | 'edit' | 'add' | null;
+
+function PinIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M9.5 1.5l5 5-1.4 1.4-.9-.3-2.6 2.6.3 2.5L8.5 14 5.6 11.1 2 14.7l-.7-.7 3.6-3.6L2 7.5l1.3-1.4 2.5.3 2.6-2.6-.3-.9z" />
+    </svg>
+  );
+}
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -57,10 +82,18 @@ export function Menu() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [search, setSearch] = useState('');
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [flagFilters, setFlagFilters] = useState<string[]>([]);
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [kindFilters, setKindFilters] = useState<string[]>([]);
+  /** A pasted URL the server should download on save (previewed straight from the URL). */
+  const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [removeImageFlag, setRemoveImageFlag] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  /** True from pasting a URL until the browser has fetched the preview (or failed). */
+  const [imageLoading, setImageLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -101,9 +134,11 @@ export function Menu() {
   function resetImageState(existingImage?: string) {
     if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
+    setImageUrl('');
     setImagePreview(existingImage ?? null);
     setRemoveImageFlag(false);
     setImageError(null);
+    setImageLoading(false);
   }
 
   function openAdd() {
@@ -126,6 +161,8 @@ export function Menu() {
       isCombo: !!item.isCombo,
       comboItems: item.comboItems ?? [],
       available: item.available !== false,
+      pinned: !!item.pinned,
+      tags: item.tags ?? [],
     });
     resetImageState(item.image);
     setFormError(null);
@@ -146,13 +183,28 @@ export function Menu() {
     if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageError(null);
     setRemoveImageFlag(false);
+    setImageUrl('');
+    setImageLoading(false);
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
+  }
+
+  function pasteImageUrl(url: string) {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    const trimmed = url.trim();
+    setImageUrl(trimmed);
+    setImageFile(null);
+    setImageError(null);
+    setRemoveImageFlag(false);
+    setImageLoading(!!trimmed);
+    setImagePreview(trimmed || selected?.image || null);
   }
 
   function clearImage() {
     if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
+    setImageUrl('');
+    setImageLoading(false);
     setImagePreview(null);
     setRemoveImageFlag(true);
     setImageError(null);
@@ -213,10 +265,19 @@ export function Menu() {
   }
 
   async function save() {
+    if (saving || imageLoading) return;
     setFormError(null);
     const name = form.name.trim();
     if (!validateForm(name)) return;
+    setSaving(true);
+    try {
+      await persist(name);
+    } finally {
+      setSaving(false);
+    }
+  }
 
+  async function persist(name: string) {
     const payload = {
       name,
       price: Number(form.price),
@@ -225,6 +286,8 @@ export function Menu() {
       isCombo: form.isCombo,
       comboItems: form.isCombo ? form.comboItems : [],
       available: form.available,
+      pinned: form.pinned,
+      tags: form.tags,
     };
 
     let saved: MenuItem;
@@ -242,6 +305,7 @@ export function Menu() {
     let imageFailure: string | null = null;
     try {
       if (imageFile) await uploadMenuItemImage(saved._id, imageFile);
+      else if (imageUrl) await setMenuItemImageUrl(saved._id, imageUrl);
       else if (removeImageFlag) await deleteMenuItemImage(saved._id);
     } catch (err) {
       imageFailure = errorMessage(err, 'The item was saved, but its image could not be updated.');
@@ -257,13 +321,28 @@ export function Menu() {
     }
   }
 
-  async function toggleAvailable(item: MenuItem) {
+  /** Saves a partial change straight from the detail view (no Edit form). */
+  async function patchItem(item: MenuItem, updates: Partial<MenuItem>) {
     try {
-      await updateMenuItem(item._id, { available: item.available === false });
+      await updateMenuItem(item._id, updates);
       await load();
     } catch (err) {
       setListError(errorMessage(err, 'Could not update the item.'));
     }
+  }
+  const toggleAvailable = (item: MenuItem) => patchItem(item, { available: item.available === false });
+
+  /** Pin/tags edits made in the detail view, held until "Save" so a stray
+   * click never writes to the catalog. Reset whenever the selection changes. */
+  const [gridDraft, setGridDraft] = useState<{ pinned: boolean; tags: string[] } | null>(null);
+  const [gridSaving, setGridSaving] = useState(false);
+  useEffect(() => setGridDraft(null), [selectedId]);
+  async function saveGridDraft(item: MenuItem) {
+    if (!gridDraft) return;
+    setGridSaving(true);
+    await patchItem(item, gridDraft);
+    setGridSaving(false);
+    setGridDraft(null);
   }
 
   async function confirmDelete(item: MenuItem) {
@@ -286,8 +365,12 @@ export function Menu() {
   }
 
   const distinctCategories = [...new Set(items.map((i) => i.category))];
+  const distinctTags = [...new Set(items.flatMap((i) => i.tags ?? []))].sort();
   const filteredItems = items
     .filter((i) => categoryFilters.length === 0 || categoryFilters.includes(i.category))
+    .filter((i) => flagFilters.length === 0 || flagsOf(i).some((f) => flagFilters.includes(f)))
+    .filter((i) => tagFilters.length === 0 || (i.tags ?? []).some((t) => tagFilters.includes(t)))
+    .filter((i) => kindFilters.length === 0 || kindFilters.includes(kindOf(i)))
     .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
   const comboCandidates = items.filter((i) => !i.isCombo && i._id !== selectedId);
   const selectedSeparateTotal = selected?.isCombo && selected.comboItems?.length
@@ -310,7 +393,27 @@ export function Menu() {
             onChange={(e) => setSearch(e.target.value)}
           />
           <MultiSelectDropdown values={categoryFilters} options={distinctCategories} onChange={setCategoryFilters} placeholder="All categories" />
+          <MultiSelectDropdown values={flagFilters} options={FLAG_OPTIONS} onChange={setFlagFilters} placeholder="Any status" />
+          <MultiSelectDropdown values={kindFilters} options={KIND_OPTIONS} onChange={setKindFilters} placeholder="Any kind" />
+          {distinctTags.length > 0 && (
+            <MultiSelectDropdown values={tagFilters} options={distinctTags} onChange={setTagFilters} placeholder="Any tag" />
+          )}
         </div>
+
+        <ActiveFilters
+          filters={[
+            ...categoryFilters.map((c) => ({ label: `Category: ${c}`, onRemove: () => setCategoryFilters(categoryFilters.filter((x) => x !== c)) })),
+            ...flagFilters.map((s) => ({ label: `Status: ${s}`, onRemove: () => setFlagFilters(flagFilters.filter((x) => x !== s)) })),
+            ...tagFilters.map((t) => ({ label: `Tag: ${t}`, onRemove: () => setTagFilters(tagFilters.filter((x) => x !== t)) })),
+            ...kindFilters.map((k) => ({ label: `Kind: ${k}`, onRemove: () => setKindFilters(kindFilters.filter((x) => x !== k)) })),
+          ]}
+          onClearAll={() => {
+            setCategoryFilters([]);
+            setFlagFilters([]);
+            setTagFilters([]);
+            setKindFilters([]);
+          }}
+        />
 
         {listError && <p className="field-error" role="alert">{listError}</p>}
 
@@ -325,21 +428,29 @@ export function Menu() {
               header: 'Item',
               render: (i: MenuItem) => (
                 <>
+                  {i.pinned && (
+                    <span className="row-pin" title="Pinned to the top of the Cashier grid">
+                      <PinIcon />
+                      <span className="visually-hidden">Pinned. </span>
+                    </span>
+                  )}
                   {i.name}
                   {i.available === false && <span className="muted-text"> (86'd)</span>}
                 </>
               ),
+              sortValue: (i: MenuItem) => i.name.toLowerCase(),
             },
-            { header: 'Category', render: (i: MenuItem) => i.category },
+            { header: 'Category', render: (i: MenuItem) => i.category, sortValue: (i: MenuItem) => i.category.toLowerCase() },
             {
               header: 'Price',
               numeric: true,
               render: (i: MenuItem) =>
                 i.variants?.length
                   ? `from $${Math.min(...i.variants.map((v) => v.price)).toFixed(2)}`
-                  : `$${i.price.toFixed(2)}`,
+                  : `${i.price.toFixed(2)}`,
+              sortValue: lowestPrice,
             },
-            { header: 'Details', render: describe },
+            { header: 'Details', render: (i: MenuItem) => <span className="clamp-2">{describe(i)}</span>, sortValue: kindOf },
           ]}
           rows={filteredItems}
           rowKey={(i) => i._id}
@@ -428,7 +539,16 @@ export function Menu() {
               >
                 {imagePreview ? (
                   <>
-                    <img src={imagePreview} alt="" />
+                    <img
+                      src={imagePreview}
+                      alt=""
+                      onLoad={() => setImageLoading(false)}
+                      onError={() => {
+                        setImageLoading(false);
+                        if (imageUrl) setImageError("That URL didn't load as an image.");
+                      }}
+                    />
+                    {imageLoading && <span className="photo-drop-loading" role="status"><span className="spinner large" aria-hidden="true" />Loading image…</span>}
                     <span className="photo-drop-overlay">Change photo</span>
                   </>
                 ) : (
@@ -443,6 +563,14 @@ export function Menu() {
                   </>
                 )}
               </label>
+              <input
+                type="url"
+                className="image-url-input"
+                placeholder="or paste an image URL"
+                aria-label="Image URL"
+                value={imageUrl}
+                onChange={(e) => pasteImageUrl(e.target.value)}
+              />
               {imagePreview && (
                 <button type="button" className="link-btn" onClick={clearImage}>Remove photo</button>
               )}
@@ -456,6 +584,18 @@ export function Menu() {
                 onChange={(e) => setForm({ ...form, available: e.target.checked })}
               />
               Available for sale
+            </label>
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.pinned}
+                onChange={(e) => setForm({ ...form, pinned: e.target.checked })}
+              />
+              Pin to the top of the Cashier grid
+            </label>
+            <label className="field-label">
+              <span className="field-label-row">Tags <span className="field-hint">up to {MAX_TAGS}</span></span>
+              <TagInput value={form.tags} options={distinctTags} onChange={(tags) => setForm({ ...form, tags })} max={MAX_TAGS} maxLength={MAX_TAG_LENGTH} placeholder="e.g. New, Spicy" />
             </label>
             <label className="checkbox-line">
               <input
@@ -518,8 +658,11 @@ export function Menu() {
 
             {formError && <p className="field-error" role="alert">{formError}</p>}
             <div className="form-actions">
-              <button type="button" className="primary" onClick={save}>Save</button>
-              <button type="button" className="ghost" onClick={cancelForm}>Cancel</button>
+              <button type="button" className="primary" disabled={saving || imageLoading} onClick={save}>
+                {(saving || imageLoading) && <span className="spinner" aria-hidden="true" />}
+                {saving ? 'Saving…' : imageLoading ? 'Loading image…' : 'Save'}
+              </button>
+              <button type="button" className="ghost" disabled={saving} onClick={cancelForm}>Cancel</button>
             </div>
           </>
         ) : selected ? (
@@ -540,6 +683,37 @@ export function Menu() {
             ) : (
               <div className="detail-row"><span>Price</span><span className="num">${selected.price.toFixed(2)}</span></div>
             )}
+            <div className="section-header">Cashier grid</div>
+            {(() => {
+              const draft = gridDraft ?? { pinned: !!selected.pinned, tags: selected.tags ?? [] };
+              const dirty = draft.pinned !== !!selected.pinned || draft.tags.join('\n') !== (selected.tags ?? []).join('\n');
+              return (
+                <>
+                  <label className="checkbox-line">
+                    <input type="checkbox" checked={draft.pinned} disabled={gridSaving} onChange={(e) => setGridDraft({ ...draft, pinned: e.target.checked })} />
+                    Pinned to the top
+                  </label>
+                  <TagInput
+                    value={draft.tags}
+                    options={distinctTags}
+                    onChange={(tags) => setGridDraft({ ...draft, tags })}
+                    max={MAX_TAGS}
+                    maxLength={MAX_TAG_LENGTH}
+                    placeholder="Add a tag (e.g. New, Spicy)"
+                    disabled={gridSaving}
+                  />
+                  {dirty && (
+                    <div className="grid-draft-actions">
+                      <button type="button" className="primary" disabled={gridSaving} onClick={() => saveGridDraft(selected)}>
+                        {gridSaving && <span className="spinner" aria-hidden="true" />}
+                        {gridSaving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button type="button" className="ghost" disabled={gridSaving} onClick={() => setGridDraft(null)}>Discard</button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {selected.isCombo && (
               <>
                 <div className="section-header">Includes</div>

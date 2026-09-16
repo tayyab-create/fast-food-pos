@@ -21,6 +21,10 @@ export interface MenuItem {
   comboItems?: ComboEntry[];
   image?: string;
   available?: boolean;
+  /** Pinned items sort first on the Cashier grid. */
+  pinned?: boolean;
+  /** Short labels shown on the Cashier tile, e.g. 'New', 'Spicy'. */
+  tags?: string[];
 }
 
 export interface OrderItem {
@@ -68,8 +72,22 @@ export interface Order {
   createdAt: string;
 }
 
-export interface DailyReport {
+export interface ReportBucket {
+  count: number;
+  revenue: number;
+}
+
+/** Aggregates for a date range (or all time). */
+export interface SummaryReport {
   orderCount: number;
   revenue: number;
+  avgOrder: number;
+  discountTotal: number;
+  voidedCount: number;
+  voidedTotal: number;
   topItems: { name: string; qty: number }[];
+  byPaymentMethod: Partial<Record<PaymentMethod, ReportBucket>>;
+  byOrderType: Partial<Record<OrderType, ReportBucket>>;
+  /** Index = hour of day, 0–23. */
+  byHour: ReportBucket[];
 }

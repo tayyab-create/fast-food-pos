@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMenu } from '../api/menu';
 import { createOrder } from '../api/orders';
+import { getPopularItems } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { isMoneyInput, roundMoney } from '../money';
 import { Modal } from '../components/Modal';
@@ -28,7 +29,7 @@ const EMPTY_CART: CartState = {
   discountReason: '',
   urgent: false,
   orderNote: '',
-  orderType: 'takeout',
+  orderType: 'dine-in',
 };
 
 interface HeldOrder extends CartState {
@@ -58,6 +59,7 @@ function newId(): string {
 export function Cashier() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [popular, setPopular] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
   const [search, setSearch] = useState('');
   const [expandedTile, setExpandedTile] = useState<string | null>(null);
@@ -78,6 +80,8 @@ export function Cashier() {
 
   useEffect(() => {
     getMenu().then(setMenu).catch((err) => setMenuError(err instanceof Error ? err.message : 'Could not load the menu.'));
+    // Purely decorative — a failure just means no "Popular" badges.
+    getPopularItems().then(setPopular).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -100,7 +104,12 @@ export function Cashier() {
   const visibleItems = menu
     .filter((i) => i.available !== false)
     .filter((i) => activeCategory === ALL || i.category === activeCategory)
-    .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
+    .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+
+  // Sold as "Name" or "Name (Size)" — popular names come back in order-line form.
+  const isPopular = (item: MenuItem) =>
+    popular.some((name) => name === item.name || name.startsWith(`${item.name} (`));
 
   function addLine(name: string, price: number, comboItems?: string[]) {
     setCart((prev) => {
@@ -265,6 +274,20 @@ export function Cashier() {
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && tapTile(item)}
               >
                 {item.image && <img className="item-tile-image" src={item.image} alt="" />}
+                {item.pinned && (
+                  <span className="tile-pin" title="Pinned">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <path d="M9.5 1.5l5 5-1.4 1.4-.9-.3-2.6 2.6.3 2.5L8.5 14 5.6 11.1 2 14.7l-.7-.7 3.6-3.6L2 7.5l1.3-1.4 2.5.3 2.6-2.6-.3-.9z" />
+                    </svg>
+                    <span className="visually-hidden">Pinned</span>
+                  </span>
+                )}
+                {(isPopular(item) || !!item.tags?.length) && (
+                  <span className="tile-tags">
+                    {isPopular(item) && <span className="tile-tag popular">Popular</span>}
+                    {item.tags?.map((t) => <span className="tile-tag" key={t}>{t}</span>)}
+                  </span>
+                )}
                 <span className="name">{item.name}</span>
                 {item.isCombo && !!item.comboItems?.length && (
                   <span className="combo-contents">{comboContentsSummary(item.comboItems, menu)}</span>
@@ -316,6 +339,8 @@ export function Cashier() {
 
         <div className="ledger-sheet-header">
           <h2>Order</h2>
+          {/* Status only — the control lives with the other order options below. */}
+          {urgent && <span className="urgent-tag">Urgent</span>}
           {cart.length > 0 && (
             <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
           )}
@@ -381,9 +406,14 @@ export function Cashier() {
         </div>
 
         {cart.length > 0 && (
-          <button type="button" className="ghost more-toggle" onClick={() => setShowMore(true)}>
-            ⋯ More {(urgent || discountType || orderNote) && <span className="more-dot" aria-label="options set" />}
-          </button>
+          <div className="cart-options-row">
+            <button type="button" className="ghost more-toggle" onClick={() => setShowMore(true)}>
+              ⋯ More {(discountType || orderNote) && <span className="more-dot" aria-label="options set" />}
+            </button>
+            <button type="button" className="ghost" aria-pressed={urgent} onClick={() => setUrgent((u) => !u)}>
+              ⚑ {urgent ? 'Remove urgent' : 'Mark urgent'}
+            </button>
+          </div>
         )}
 
         <div className="totals-block">
@@ -415,11 +445,6 @@ export function Cashier() {
 
       {showMore && (
         <Modal title="More options" className="more-modal" onClose={() => setShowMore(false)}>
-          <label className="checkbox-line">
-            <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
-            Mark order urgent
-          </label>
-
           <input
             className="order-note-input"
             placeholder="Order note (e.g. customer waiting outside)"

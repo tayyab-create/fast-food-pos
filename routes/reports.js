@@ -3,6 +3,7 @@ const reportsController = require('../controllers/reportsController');
 
 const router = express.Router();
 
-router.get('/daily', reportsController.daily);
+router.get('/summary', reportsController.summary);
+router.get('/popular', reportsController.popular);
 
 module.exports = router;

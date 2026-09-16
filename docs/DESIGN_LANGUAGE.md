@@ -56,7 +56,9 @@ page with dramatic size jumps.
 **Rule:** the serif appears exactly once per screen (the page title).
 Everything functional is sans or mono. Don't let the serif creep into
 labels or buttons — that's what keeps it feeling institutional rather than
-"boutique."
+"boutique." The one deliberate exception is the amount due in the payment
+modal: it is that surface's headline, so it takes the serif (with tabular
+numerals) to stand apart from the mono figures around it.
 
 ## Layout
 
@@ -114,7 +116,12 @@ labels or buttons — that's what keeps it feeling institutional rather than
 - **Validation**: invalid fields get a danger-red border + tinted glow and
   an inline message directly under the label — errors explain what's
   needed, not just "invalid."
-- **Motion**: none beyond simple transitions on focus/hover. No entrance
+- **Progress**: anything that waits on the network shows the `.spinner`
+  ring (2px, current text colour, `.large` for veils) next to a verb in
+  progress — "Saving…", "Placing order…", "Loading image…" — and the button
+  that started it is disabled until it settles. Never a bare label change.
+- **Motion**: none beyond simple transitions on focus/hover and the
+  spinner's rotation (slowed under `prefers-reduced-motion`). No entrance
   animations, no hover-lift on every element.
 
 ## Voice

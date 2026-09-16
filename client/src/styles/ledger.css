@@ -224,6 +224,7 @@ table.ledger {
   background: var(--surface);
 }
 table.ledger th {
+  white-space: nowrap;
   text-align: left;
   font-size: 11.5px;
   text-transform: uppercase;
@@ -353,6 +354,8 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .item-tile .name { font-size: 13.5px; line-height: 1.3; }
 .item-tile .price { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--forest-dark); font-weight: 500; align-self: flex-end; margin-top: auto; }
 .combo-contents { font-size: 11px; color: var(--muted); font-style: italic; line-height: 1.3; }
+.item-tile .combo-contents { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .combo-price { display: flex; align-items: baseline; gap: 6px; }
 .combo-strike {
   font-size: 11.5px;
@@ -362,10 +365,12 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 }
 
 .variant-row {
-  display: flex;
-  flex-wrap: wrap;
+  /* Single column sized to the widest variant, so every button matches it. */
+  display: inline-grid;
+  grid-template-columns: auto;
   gap: 6px;
   margin-top: 4px;
+  max-width: 100%;
 }
 .variant-row button {
   padding: 5px 9px;
@@ -405,10 +410,10 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   padding-bottom: 10px;
   flex-shrink: 0;
 }
-.discount-block, .totals-block, .checkout-row, .held-orders, .more-toggle, .order-type-row, .ledger-sheet > button.primary {
+.discount-block, .totals-block, .checkout-row, .held-orders, .cart-options-row, .order-type-row, .ledger-sheet > button.primary {
   flex-shrink: 0;
 }
-.ledger-sheet-header h2 { margin: 0; border: none; padding: 0; }
+.ledger-sheet-header h2 { flex: 1; margin: 0; border: none; padding: 0; }
 .order-summary { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 .ledger-sheet .empty { color: var(--muted); font-size: 13px; }
@@ -416,7 +421,9 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .order-type-row { margin-bottom: 14px; }
 .order-note-input { width: 100%; margin-top: 8px; }
 
-.more-toggle { font-size: 12.5px; padding: 5px 12px; margin-top: 16px; align-self: flex-start; }
+.cart-options-row { display: flex; gap: 8px; margin-top: 16px; flex-shrink: 0; }
+.cart-options-row button { font-size: 12.5px; padding: 5px 12px; }
+.cart-options-row button[aria-pressed="true"] { color: var(--danger); border-color: var(--danger); }
 .more-dot {
   display: inline-block;
   width: 6px;
@@ -426,7 +433,6 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   background: var(--forest);
   vertical-align: middle;
 }
-.more-modal .checkbox-line { margin: 0 0 12px; }
 .more-modal .discount-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 
 .pay-modal { max-width: 360px; }
@@ -447,7 +453,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   letter-spacing: 0.06em;
   color: var(--forest-dark);
 }
-.pay-total-amount { font-family: var(--font-num); font-size: 32px; font-weight: 600; color: var(--ink); }
+.pay-total-amount { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 38px; font-weight: 600; line-height: 1.1; color: var(--ink); }
 
 .pay-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
 .pay-tabs button {
@@ -463,7 +469,11 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .pay-tabs button.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--forest-dark); }
 
 .pay-cash-section, .pay-card-section { display: flex; flex-direction: column; gap: 12px; }
+.pay-tender-row { display: flex; gap: 8px; }
+.pay-tender-row > .ghost { flex-shrink: 0; padding: 0 14px; }
 .pay-amount-field {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -801,6 +811,9 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   padding: 14px;
 }
 .ticket.urgent { background: var(--ochre-tint); }
+/* The muted grey tag fails contrast on the tinted ticket backgrounds. */
+.ticket.urgent .order-type-tag { color: var(--ochre); border-color: var(--ochre); }
+.ticket.overdue .order-type-tag { color: var(--danger); border-color: var(--danger); }
 .ticket.overdue { background: var(--danger-tint); }
 .ticket-header {
   display: flex;
@@ -820,7 +833,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   border-radius: 999px;
   padding: 2px 8px;
 }
-.order-type-tag {
+.order-type-tag, .tile-tag {
   font-family: var(--font-ui);
   font-size: 10px;
   font-weight: 600;
@@ -899,11 +912,22 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   margin-bottom: 16px;
 }
 .reports-filter-bar .dropdown { min-width: 150px; }
-.date-range-field {
-  display: flex;
+
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -6px 0 14px; }
+.active-filters-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-right: 4px; }
+.filter-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  font-size: 12px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
 }
+.filter-chip button { border: none; background: none; padding: 0 5px; font-size: 14px; line-height: 1; color: var(--muted); border-radius: 999px; }
+.filter-chip button:hover { color: var(--danger); background: var(--danger-tint); }
+.active-filters .link-btn { margin-left: 4px; }
 
 /* Custom calendar date picker — replaces native <input type="date">, whose
    popup is rendered by the OS/browser and can't be restyled with CSS. */
@@ -987,10 +1011,16 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   font-weight: 500;
 }
 .date-picker-grid button.selected:hover { background: var(--forest); }
+.date-picker-grid button.in-range { background: var(--forest-tint); border-radius: 0; }
+.date-picker-grid button:disabled { color: var(--line-strong); cursor: not-allowed; background: none; }
+.date-picker-nav button:disabled { opacity: 0.35; cursor: not-allowed; background: none; }
+.date-picker-hint { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); }
 
 .date-picker-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 4px 8px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
@@ -1147,7 +1177,7 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   gap: 8px;
   font-size: 13px;
   color: var(--ink);
-  margin: 14px 0;
+  margin: 10px 0;
   cursor: pointer;
 }
 
@@ -1298,5 +1328,109 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 .link-btn:hover { background: none; color: var(--danger); }
 
 .field-label-row { display: flex; justify-content: space-between; align-items: baseline; }
+/* Secondary note beside a field label: plain sentence case so it reads as a hint, not a second label. */
+.field-hint { font-family: var(--font-ui); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .char-count { font-family: var(--font-num); font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .char-count.at-limit { color: var(--danger); }
+
+/* Cashier tile labels: a pin in the corner, "Popular"/custom tags in a row */
+.item-tile { position: relative; }
+.tile-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--forest-dark);
+  color: white;
+  border: 1px solid var(--surface);
+}
+.tile-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tile-tag.popular { color: var(--ochre); border-color: var(--ochre); background: var(--ochre-tint); }
+.detail-row .tile-tags { justify-content: flex-end; }
+
+.image-url-input { width: 100%; margin-top: 8px; font-size: 12.5px; }
+.photo-drop-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(247, 248, 246, 0.8);
+  color: var(--forest-dark);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Tag input: chips + type-ahead field inside one bordered box */
+.tag-input {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: text;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tag-input:focus-within { border-color: var(--forest); box-shadow: 0 0 0 3px var(--forest-tint); }
+.tag-input.disabled { opacity: 0.6; cursor: default; }
+.tag-input input { flex: 1; min-width: 90px; border: none; padding: 4px 2px; background: transparent; font-size: 13px; }
+.tag-input input:focus { box-shadow: none; }
+.tag-input .filter-chip { background: var(--paper); }
+.tag-input .combobox-list { top: calc(100% + 4px); left: 0; }
+.tag-input .combobox-list.open-up { top: auto; bottom: calc(100% + 4px); box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08); }
+
+/* Reports: hourly strip */
+.stats-row { flex-wrap: wrap; }
+.stat { flex: 1 1 140px; }
+.hour-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  margin: 0;
+  padding: 0 0 14px;
+  list-style: none;
+  border-bottom: 1px solid var(--line-strong);
+  position: relative;
+}
+.hour-bars li { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; position: relative; }
+.hour-bar { display: block; width: 100%; background: var(--forest); border-radius: 2px 2px 0 0; min-height: 0; }
+.hour-bars li:hover .hour-bar { background: var(--forest-dark); }
+.hour-label { position: absolute; bottom: -14px; font-family: var(--font-num); font-size: 9.5px; color: var(--muted); }
+
+/* Circular progress — indeterminate ring in the current text colour */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+.spinner.large { width: 22px; height: 22px; border-width: 2.5px; }
+button .spinner { margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+}
+.dropdown-list li > button:disabled { opacity: 0.45; cursor: not-allowed; background: none; }
+.dropdown-note { padding: 6px 9px 2px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
+.tag-input input:read-only { cursor: default; }
+.row-pin { display: inline-flex; color: var(--forest-dark); margin-right: 6px; vertical-align: -1px; }
+.grid-draft-actions { display: flex; gap: 8px; margin-top: 10px; }
+.grid-draft-actions button { font-size: 12.5px; padding: 6px 14px; }
