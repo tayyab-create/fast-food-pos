@@ -90,4 +90,16 @@ export interface SummaryReport {
   byOrderType: Partial<Record<OrderType, ReportBucket>>;
   /** Index = hour of day, 0–23. */
   byHour: ReportBucket[];
+  /** Index = day of week, 0 = Sunday. */
+  byWeekday: ReportBucket[];
+  /** One entry per calendar day that had orders, ascending. */
+  byDay: ({ date: string } & ReportBucket)[];
+  /** Per-item sales; orderShare = fraction of orders containing the item. */
+  items: { name: string; qty: number; revenue: number; orders: number; orderShare: number }[];
+  cashTendered: number;
+  changeGiven: number;
+  /** Fraction of order lines that were combos. */
+  comboShare: number;
+  discountsByReason: { reason: string; count: number; amount: number }[];
+  voids: { _id: string; orderNumber: number; total: number; reason: string; at: string }[];
 }

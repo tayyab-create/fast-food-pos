@@ -128,7 +128,7 @@ client/                 Vite + React + TypeScript SPA
 | POST   | /api/orders       | { items: OrderItem[], paymentMethod, orderType?, amountTendered?, discount?, urgent?, note? } | Order (201) |
 | PATCH  | /api/orders/:id   | { status, reason? } — `reason` required (≤200 chars) when status is `voided` | Order |
 | POST   | /api/menu/:id/image-url | { url } (public http(s) image, ≤5MB; server downloads it and stores it exactly like an upload — loopback/LAN hosts and redirects are refused) | MenuItem |
-| GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], byPaymentMethod, byOrderType, byHour[24] } — voided orders are excluded from every revenue figure and counted separately |
+| GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], items: [{name, qty, revenue, orders, orderShare}], byPaymentMethod, byOrderType, byHour[24], byWeekday[7], byDay: [{date, count, revenue}], cashTendered, changeGiven, comboShare, discountsByReason: [{reason, count, amount}], voids: [{_id, orderNumber, total, reason, at}] } — voided orders are excluded from every revenue figure and counted separately; the client fetches the same-length range before `from` a second time to show period-over-period deltas |
 | GET    | /api/reports/popular | —                                    | string[] — names of the 5 best-selling items over the last 7 days (the Cashier's "Popular" badge) |
 
 ## Visual style
@@ -176,17 +176,29 @@ stays about architecture and data shapes.
   callout, itemized lines with per-item notes and combo contents, one button
   to advance to the next status, plus a Void action). Urgent orders sort to
   the top of their column. Polls `/api/orders` every 3 seconds.
-- **Reports (`/reports`)**: one `DateRangePicker` (default today; presets
-  for the last 7 days, this month and "All time"; future days disabled)
-  scopes the whole page. The summary shows ledger stat lines — orders,
-  revenue, average order, discounts given, voided count/value — then ruled
-  tables of top-selling items by quantity, sales by payment method and by
-  order type, and an orders-by-hour bar strip; beside them a searchable,
-  sortable, paginated Order History table with its own filters, independent
-  of the summary range (search by order #/item/discount reason; multi-select
-  Status and Order type filters and a second `DateRangePicker` defaulting to
-  all time, all listed as removable `ActiveFilters` chips). Clicking a row opens
-  `OrderDetailModal` (with a Void action and the status-history timeline).
+- **Reports (`/reports`)**: four tabs. A `DateRangePicker` (default
+  today; presets for the last 7 days, this month and "All time"; future days
+  disabled) plus a Print button scope the first three; "Print" uses a
+  `@media print` sheet that drops the nav, tabs and tools.
+  - *Overview*: stat lines — orders, revenue, average order, discounts
+    given, voided — each with a ▲/▼ delta against the same-length period
+    immediately before the range (green when better, red when worse;
+    discounts and voids count "up" as worse; open-ended ranges show no
+    delta). Then top items, sales by order type, and `BarStrip`s for orders
+    by hour, revenue by day (when the range spans more than one day) and
+    revenue by day of week (when it spans more than a week or is all time).
+  - *Items*: every item sold with qty, change in qty vs the previous
+    period, revenue, and how many orders it appeared in (count · share);
+    the combo share of order lines; CSV download.
+  - *Payments & voids*: sales by payment method with cash tendered, change
+    given and net cash; discounts by reason; a voids table with the reason
+    and time of each (row click opens the order); CSV download.
+  - *Order history*: the searchable, sortable, paginated table with its own
+    filters, independent of the summary range (search by order #/item/
+    discount/void reason; multi-select Status and Order type; its own
+    `DateRangePicker` defaulting to all time; all shown as removable
+    `ActiveFilters` chips) and a CSV download of the filtered rows.
+    Clicking a row opens `OrderDetailModal`.
 - **Menu (`/menu`)**: a search bar + multi-select Category, Status
   (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind
   (Single/Sizes/Combo) and Tag filters, with the active ones listed as
@@ -299,6 +311,13 @@ first.
   Takes `{ value: string[], options, onChange, max?, maxLength?,
   placeholder?, disabled? }`. Used for menu-item tags in both the edit form
   and the detail view.
+- **`BarStrip`** (`components/BarStrip.tsx`) — a row of thin bars scaled
+  to the tallest (`{ label, value, title }[]`), pure CSS heights with the
+  exact figure on hover. Used by Reports for orders by hour, revenue by day
+  and revenue by day of week.
+- **`downloadCsv()`** (`csv.ts`) — builds a CSV from rows (quoting as
+  needed, UTF-8 BOM so Excel keeps × and —) and triggers a download. All
+  Reports exports go through it.
 - **`DatePicker`** (`components/DatePicker.tsx`) — replaces native
   `<input type="date">`, whose calendar popup is rendered by the OS/browser
   and can't be restyled with CSS in any browser (the same limitation that
