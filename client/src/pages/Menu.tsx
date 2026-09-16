@@ -1,0 +1,589 @@
+import { useEffect, useState } from 'react';
+import {
+  createMenuItem,
+  deleteMenuItem,
+  deleteMenuItemImage,
+  getMenu,
+  updateMenuItem,
+  uploadMenuItemImage,
+} from '../api/menu';
+import { comboItemsTotal, formatComboEntry, priceForComboEntry } from '../comboFormat';
+import { Combobox } from '../components/Combobox';
+import { Dropdown, MultiSelectDropdown } from '../components/Dropdown';
+import { LedgerTable } from '../components/LedgerTable';
+import type { ComboEntry, MenuItem, Variant } from '../types';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const COMBO_CATEGORY = 'Combo';
+
+// A combo entry's `name` doubles as its match key, using the same
+// "Base (Variant)" convention the cart/order pricing already relies on.
+interface ComboFormEntry extends ComboEntry {
+  price: number;
+}
+
+interface FormState {
+  name: string;
+  category: string;
+  price: string;
+  priceEdited: boolean;
+  hasVariants: boolean;
+  variants: Variant[];
+  isCombo: boolean;
+  comboItems: ComboFormEntry[];
+  available: boolean;
+}
+
+const EMPTY_FORM: FormState = {
+  name: '',
+  category: '',
+  price: '',
+  priceEdited: false,
+  hasVariants: false,
+  variants: [],
+  isCombo: false,
+  comboItems: [],
+  available: true,
+};
+
+function describe(item: MenuItem): string {
+  if (item.variants?.length) return `${item.variants.length} size${item.variants.length > 1 ? 's' : ''}`;
+  if (item.isCombo) return item.comboItems?.length ? item.comboItems.map(formatComboEntry).join(' + ') : 'Combo';
+  return '—';
+}
+
+type Mode = 'view' | 'edit' | 'add' | null;
+
+export function Menu() {
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [search, setSearch] = useState('');
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [comboSearch, setComboSearch] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [removeImageFlag, setRemoveImageFlag] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string; price?: string; variants?: Record<number, string> }>({});
+
+  function load() {
+    return getMenu().then(setItems);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const selected = items.find((i) => i._id === selectedId) ?? null;
+
+  // Combo entries reference items by name (or "Name (Variant)"), so renaming/deleting
+  // an item can silently orphan a combo's reference — warn using already-loaded items.
+  function combosReferencing(itemName: string): string[] {
+    return items
+      .filter((i) => i.isCombo && i.comboItems?.some((entry) => entry.name === itemName || entry.name.startsWith(`${itemName} (`)))
+      .map((i) => i.name);
+  }
+
+  function selectItem(item: MenuItem) {
+    setSelectedId(item._id);
+    setMode('view');
+  }
+
+  function resetImageState(existingImage?: string) {
+    setImageFile(null);
+    setImagePreview(existingImage ?? null);
+    setRemoveImageFlag(false);
+    setImageError(null);
+  }
+
+  function openAdd() {
+    setSelectedId(null);
+    setForm(EMPTY_FORM);
+    resetImageState();
+    setFormError(null);
+    setFieldErrors({});
+    setMode('add');
+  }
+
+  function openEdit(item: MenuItem) {
+    setForm({
+      name: item.name,
+      category: item.category,
+      price: String(item.price),
+      priceEdited: true,
+      hasVariants: !!item.variants?.length,
+      variants: item.variants ?? [],
+      isCombo: !!item.isCombo,
+      comboItems: (item.comboItems ?? []).map((c) => ({ ...c, price: priceForComboEntry(c, items) })),
+      available: item.available !== false,
+    });
+    resetImageState(item.image);
+    setFormError(null);
+    setFieldErrors({});
+    setMode('edit');
+  }
+
+  function pickImage(file: File | null) {
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Only JPEG, PNG, or WebP images are allowed.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image must be 5MB or smaller.');
+      return;
+    }
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageError(null);
+    setRemoveImageFlag(false);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearImage() {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(null);
+    setRemoveImageFlag(true);
+    setImageError(null);
+  }
+
+  function cancelForm() {
+    setMode(selectedId ? 'view' : null);
+  }
+
+  function addVariantRow() {
+    setForm((f) => ({ ...f, variants: [...f.variants, { name: '', price: 0 }] }));
+  }
+
+  function updateVariantRow(index: number, field: 'name' | 'price', value: string) {
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.map((v, i) =>
+        i === index ? { ...v, [field]: field === 'price' ? Number(value) || 0 : value } : v
+      ),
+    }));
+  }
+
+  function removeVariantRow(index: number) {
+    setForm((f) => ({ ...f, variants: f.variants.filter((_, i) => i !== index) }));
+  }
+
+  // Applies a comboItems update, and — unless the user has typed their own
+  // price — refreshes `price` to the new sum, so it always starts out
+  // correct but never fights a deliberate manual edit.
+  function updateComboItems(updater: (items: ComboFormEntry[]) => ComboFormEntry[]) {
+    setForm((f) => {
+      const comboItems = updater(f.comboItems);
+      const sum = comboItems.reduce((total, c) => total + c.price * c.qty, 0);
+      return { ...f, comboItems, price: f.priceEdited ? f.price : sum.toFixed(2) };
+    });
+  }
+
+  function comboEntryFor(candidate: MenuItem): ComboFormEntry | undefined {
+    return form.comboItems.find((entry) =>
+      candidate.variants?.length ? entry.name.startsWith(`${candidate.name} (`) : entry.name === candidate.name
+    );
+  }
+
+  function toggleComboItem(candidate: MenuItem) {
+    const existing = comboEntryFor(candidate);
+    if (existing) {
+      updateComboItems((prev) => prev.filter((c) => c !== existing));
+      return;
+    }
+    const variant = candidate.variants?.[0];
+    const entry: ComboFormEntry = variant
+      ? { name: `${candidate.name} (${variant.name})`, qty: 1, price: variant.price }
+      : { name: candidate.name, qty: 1, price: candidate.price };
+    updateComboItems((prev) => [...prev, entry]);
+  }
+
+  function setComboVariant(candidate: MenuItem, variantName: string) {
+    const existing = comboEntryFor(candidate);
+    const variant = candidate.variants?.find((v) => v.name === variantName);
+    const entry: ComboFormEntry = { name: `${candidate.name} (${variantName})`, qty: existing?.qty ?? 1, price: variant?.price ?? 0 };
+    updateComboItems((prev) => (existing ? prev.map((c) => (c === existing ? entry : c)) : [...prev, entry]));
+  }
+
+  function setComboQty(candidate: MenuItem, qty: number) {
+    if (!(qty > 0)) return;
+    const existing = comboEntryFor(candidate);
+    if (!existing) return;
+    updateComboItems((prev) => prev.map((c) => (c === existing ? { ...c, qty } : c)));
+  }
+
+  const comboSum = form.comboItems.reduce((total, c) => total + c.price * c.qty, 0);
+
+  function validateForm(name: string): boolean {
+    const errors: typeof fieldErrors = {};
+    if (!name) errors.name = 'Name is required.';
+    if (!form.category.trim()) errors.category = 'Category is required.';
+    if (!(Number(form.price) > 0)) errors.price = 'Must be a positive number.';
+    if (form.hasVariants) {
+      const variantErrors: Record<number, string> = {};
+      form.variants.forEach((v, i) => {
+        if (!v.name.trim()) variantErrors[i] = 'Name required.';
+        else if (!(v.price > 0)) variantErrors[i] = 'Positive price required.';
+      });
+      if (Object.keys(variantErrors).length) errors.variants = variantErrors;
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  async function save() {
+    setFormError(null);
+    const name = form.name.trim();
+    if (!validateForm(name)) return;
+
+    if (mode === 'edit' && selected && selected.name !== name) {
+      const affected = combosReferencing(selected.name);
+      if (affected.length) {
+        const proceed = window.confirm(
+          `"${selected.name}" is used in: ${affected.join(', ')}. Renaming won't update those combos — continue?`
+        );
+        if (!proceed) return;
+      }
+    }
+
+    const payload = {
+      name,
+      price: Number(form.price),
+      category: form.category || 'Other',
+      variants: form.hasVariants ? form.variants.filter((v) => v.name) : [],
+      isCombo: form.isCombo,
+      comboItems: form.isCombo ? form.comboItems.map(({ name, qty }) => ({ name, qty })) : [],
+      available: form.available,
+    };
+    try {
+      const saved = mode === 'edit' && selectedId
+        ? await updateMenuItem(selectedId, payload)
+        : await createMenuItem(payload);
+
+      if (imageFile) {
+        await uploadMenuItemImage(saved._id, imageFile);
+      } else if (removeImageFlag) {
+        await deleteMenuItemImage(saved._id);
+      }
+
+      await load();
+      setSelectedId(saved._id);
+      setMode('view');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save item.');
+    }
+  }
+
+  async function toggleAvailable(item: MenuItem) {
+    await updateMenuItem(item._id, { available: item.available === false });
+    load();
+  }
+
+  async function confirmDelete(item: MenuItem) {
+    const affected = combosReferencing(item.name);
+    const message = affected.length
+      ? `"${item.name}" is used in: ${affected.join(', ')}. Deleting it won't update those combos. Delete anyway?`
+      : `Delete "${item.name}"? This can't be undone.`;
+    if (!window.confirm(message)) return;
+    await deleteMenuItem(item._id);
+    if (selectedId === item._id) {
+      setSelectedId(null);
+      setMode(null);
+    }
+    load();
+  }
+
+  const distinctCategories = [...new Set(items.map((i) => i.category))];
+  const filteredItems = items
+    .filter((i) => categoryFilters.length === 0 || categoryFilters.includes(i.category))
+    .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
+
+  const comboCandidates = items
+    .filter((i) => !i.isCombo && i._id !== selectedId)
+    .filter((i) => i.name.toLowerCase().includes(comboSearch.toLowerCase()));
+
+  return (
+    <div className="pos-layout menu-layout">
+      <div className="pos-menu">
+        <div className="list-header">
+          <div className="section-header">Menu items</div>
+          <button className="primary" onClick={openAdd}>+ Add item</button>
+        </div>
+
+        <div className="filter-bar">
+          <input
+            placeholder="Search items…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <MultiSelectDropdown values={categoryFilters} options={distinctCategories} onChange={setCategoryFilters} />
+        </div>
+
+        <LedgerTable
+          columns={[
+            {
+              header: '',
+              render: (i: MenuItem) =>
+                i.image ? <img className="menu-avatar" src={i.image} alt="" /> : <span className="menu-avatar-empty" />,
+            },
+            {
+              header: 'Item',
+              render: (i: MenuItem) => (
+                <>
+                  {i.name}
+                  {i.available === false && <span className="muted-text"> (86'd)</span>}
+                </>
+              ),
+            },
+            { header: 'Category', render: (i: MenuItem) => i.category },
+            {
+              header: 'Price',
+              numeric: true,
+              render: (i: MenuItem) =>
+                i.variants?.length
+                  ? `from $${Math.min(...i.variants.map((v) => v.price)).toFixed(2)}`
+                  : `$${i.price.toFixed(2)}`,
+            },
+            { header: 'Details', render: describe },
+          ]}
+          rows={filteredItems}
+          rowKey={(i) => i._id}
+          onRowClick={selectItem}
+          isRowSelected={(i) => i._id === selectedId}
+          emptyMessage="No items match."
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50]}
+        />
+      </div>
+
+      <div className="ledger-sheet">
+        {mode === 'add' || mode === 'edit' ? (
+          <>
+            <h2>{mode === 'edit' ? 'Edit item' : 'Add item'}</h2>
+
+            <div className="field-grid">
+              <label>
+                Name
+                <input
+                  className={fieldErrors.name ? 'invalid' : undefined}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+                {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
+              </label>
+              <label>
+                Category
+                {form.isCombo ? (
+                  <input value={COMBO_CATEGORY} disabled readOnly />
+                ) : (
+                  <Combobox
+                    className={fieldErrors.category ? 'invalid' : undefined}
+                    value={form.category}
+                    options={distinctCategories}
+                    onChange={(category) => setForm({ ...form, category })}
+                  />
+                )}
+                {fieldErrors.category && <p className="field-error">{fieldErrors.category}</p>}
+              </label>
+              <label>
+                {form.hasVariants ? 'Base price' : form.isCombo ? 'Combo price' : 'Price'}
+                <input
+                  type="number"
+                  step="0.01"
+                  className={fieldErrors.price ? 'invalid' : undefined}
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value, priceEdited: true })}
+                />
+                {form.isCombo && form.comboItems.length > 0 && (
+                  <span className="hint">Sum of items: ${comboSum.toFixed(2)}</span>
+                )}
+                {fieldErrors.price && <p className="field-error">{fieldErrors.price}</p>}
+              </label>
+            </div>
+
+            <div className="image-field">
+              {imagePreview && <img className="image-preview" src={imagePreview} alt="" />}
+              <div className="image-field-controls">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+                />
+                {imagePreview && (
+                  <button className="ghost" onClick={clearImage}>Remove image</button>
+                )}
+              </div>
+              {imageError && <p className="field-error">{imageError}</p>}
+            </div>
+
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.available}
+                onChange={(e) => setForm({ ...form, available: e.target.checked })}
+              />
+              Available for sale
+            </label>
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.hasVariants}
+                onChange={(e) => setForm({ ...form, hasVariants: e.target.checked })}
+              />
+              This item has sizes / variants
+            </label>
+            {form.hasVariants && (
+              <div className="variant-editor">
+                {form.variants.map((v, i) => (
+                  <div className="variant-editor-row-wrap" key={i}>
+                    <div className="variant-editor-row">
+                      <input
+                        placeholder="Size name (e.g. Large)"
+                        className={fieldErrors.variants?.[i] ? 'invalid' : undefined}
+                        value={v.name}
+                        onChange={(e) => updateVariantRow(i, 'name', e.target.value)}
+                      />
+                      <input
+                        placeholder="Price"
+                        type="number"
+                        step="0.01"
+                        className={fieldErrors.variants?.[i] ? 'invalid' : undefined}
+                        value={v.price || ''}
+                        onChange={(e) => updateVariantRow(i, 'price', e.target.value)}
+                      />
+                      <button className="remove-btn" onClick={() => removeVariantRow(i)} aria-label="Remove size">×</button>
+                    </div>
+                    {fieldErrors.variants?.[i] && <p className="field-error">{fieldErrors.variants[i]}</p>}
+                  </div>
+                ))}
+                <button className="ghost" onClick={addVariantRow}>+ Add size</button>
+              </div>
+            )}
+
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.isCombo}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    isCombo: e.target.checked,
+                    category: e.target.checked ? COMBO_CATEGORY : f.category === COMBO_CATEGORY ? '' : f.category,
+                  }))
+                }
+              />
+              This is a combo
+            </label>
+            {form.isCombo && (
+              <div className="combo-picker">
+                <div className="hint">Select the items included in this combo</div>
+                <input
+                  className="search-input"
+                  placeholder="Search items to add…"
+                  value={comboSearch}
+                  onChange={(e) => setComboSearch(e.target.value)}
+                />
+                <div className="combo-picker-list">
+                  {comboCandidates.length === 0 && <p className="empty">No items match.</p>}
+                  {comboCandidates.map((i) => {
+                    const entry = comboEntryFor(i);
+                    const selectedVariant = entry?.name.match(/\(([^)]+)\)$/)?.[1] ?? i.variants?.[0]?.name;
+                    return (
+                      <div className="combo-picker-row" key={i._id} onClick={() => toggleComboItem(i)}>
+                        <input type="checkbox" checked={!!entry} readOnly />
+                        <span className="combo-picker-name">{i.name}</span>
+                        {entry && (
+                          <input
+                            type="number"
+                            min={1}
+                            className="num combo-qty-input"
+                            value={entry.qty}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setComboQty(i, Number(e.target.value))}
+                          />
+                        )}
+                        {i.variants?.length ? (
+                          <Dropdown
+                            value={selectedVariant ?? ''}
+                            disabled={!entry}
+                            options={i.variants.map((v) => ({ value: v.name, label: `${v.name} ($${v.price.toFixed(2)})` }))}
+                            onChange={(name) => setComboVariant(i, name)}
+                          />
+                        ) : (
+                          <span className="num">${i.price.toFixed(2)}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {form.comboItems.length > 0 && (
+                  <div className="combo-sum">
+                    <span>Sum of selected items</span>
+                    <span className="num">${comboSum.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {formError && <p className="field-error">{formError}</p>}
+            <div className="form-actions">
+              <button className="primary" onClick={save}>Save</button>
+              <button className="ghost" onClick={cancelForm}>Cancel</button>
+            </div>
+          </>
+        ) : selected ? (
+          <>
+            <h2>{selected.name}</h2>
+            {selected.image && <img className="image-preview" src={selected.image} alt="" />}
+            <div className="detail-row"><span>Category</span><span>{selected.category}</span></div>
+            {selected.variants?.length ? (
+              <>
+                <div className="section-header">Sizes</div>
+                {selected.variants.map((v) => (
+                  <div className="detail-row" key={v.name}>
+                    <span>{v.name}</span>
+                    <span className="num">${v.price.toFixed(2)}</span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="detail-row"><span>Price</span><span className="num">${selected.price.toFixed(2)}</span></div>
+            )}
+            {selected.isCombo && (
+              <>
+                <div className="section-header">Includes</div>
+                <p className="hint">{selected.comboItems?.length ? selected.comboItems.map(formatComboEntry).join(' + ') : 'No items selected'}</p>
+                {(() => {
+                  const separateTotal = selected.comboItems?.length ? comboItemsTotal(selected.comboItems, items) : 0;
+                  return separateTotal > selected.price ? (
+                    <div className="detail-row">
+                      <span>Bought separately</span>
+                      <span className="num combo-strike">${separateTotal.toFixed(2)}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </>
+            )}
+            <div className="form-actions">
+              <button className="ghost" onClick={() => openEdit(selected)}>Edit</button>
+              <button className="ghost" onClick={() => toggleAvailable(selected)}>
+                {selected.available === false ? 'Mark available' : "Mark 86'd"}
+              </button>
+              <button className="ghost danger" onClick={() => confirmDelete(selected)}>Delete</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>Item details</h2>
+            <p className="empty">Select an item from the list to view or edit it.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
