@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useFlipUp } from '../hooks/useFlipUp';
 import { useDismissable } from '../hooks/useDismissable';
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -51,6 +52,9 @@ function Calendar({ selected, rangeStart, rangeEnd, max, onPick, onHover, initia
   const start = parseISODate(initial ?? '') ?? { year: new Date().getFullYear(), month: new Date().getMonth() };
   const [viewYear, setViewYear] = useState(start.year);
   const [viewMonth, setViewMonth] = useState(start.month);
+  /** Year grid shown in place of the month; `yearPage` is its first year. */
+  const [yearPage, setYearPage] = useState<number | null>(null);
+  const maxYear = max ? Number(max.slice(0, 4)) : Infinity;
 
   function changeMonth(delta: number) {
     let m = viewMonth + delta;
@@ -81,8 +85,41 @@ function Calendar({ selected, rangeStart, rangeEnd, max, onPick, onHover, initia
 
   return (
     <>
+      {yearPage !== null ? (
+        <>
+          <div className="date-picker-header">
+            <span className="date-picker-title">{yearPage} – {yearPage + 11}</span>
+            <div className="date-picker-nav">
+              <button type="button" className="icon" aria-label="Earlier years" onClick={() => setYearPage(yearPage - 12)}>‹</button>
+              <button type="button" className="icon" aria-label="Later years" disabled={yearPage + 12 > maxYear} onClick={() => setYearPage(yearPage + 12)}>›</button>
+            </div>
+          </div>
+          <div className="date-picker-years">
+            {Array.from({ length: 12 }, (_, i) => yearPage + i).map((y) => (
+              <button
+                type="button"
+                key={y}
+                className={y === viewYear ? 'selected' : undefined}
+                disabled={y > maxYear}
+                onClick={() => {
+                  setViewYear(y);
+                  // Keep the month inside the allowed range when landing on the max year.
+                  if (max && y === maxYear) setViewMonth(Math.min(viewMonth, Number(max.slice(5, 7)) - 1));
+                  setYearPage(null);
+                }}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
       <div className="date-picker-header">
-        <span className="date-picker-title">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+        <button type="button" className="date-picker-title date-picker-title-btn" title="Choose a year" onClick={() => setYearPage(viewYear - 11)}>
+          {MONTH_NAMES[viewMonth]} {viewYear}
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M2 3.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
         <div className="date-picker-nav">
           <button type="button" className="icon" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button>
           <button
@@ -123,6 +160,8 @@ function Calendar({ selected, rangeStart, rangeEnd, max, onPick, onHover, initia
           );
         })}
       </div>
+        </>
+      )}
     </>
   );
 }
@@ -151,7 +190,9 @@ interface DatePickerProps {
 export function DatePicker({ value, onChange, placeholder = 'Any date', className, max }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   useDismissable(ref, open, () => setOpen(false));
+  const openUp = useFlipUp(ref, panelRef, open);
 
   function pick(iso: string) {
     onChange(iso);
@@ -165,7 +206,7 @@ export function DatePicker({ value, onChange, placeholder = 'Any date', classNam
         <CalendarIcon />
       </button>
       {open && (
-        <div className="date-picker-panel" role="dialog" aria-label="Choose a date">
+        <div className={`date-picker-panel${openUp ? ' open-up' : ''}`} role="dialog" aria-label="Choose a date" ref={panelRef}>
           <Calendar selected={value ? [value] : []} max={max} onPick={pick} initial={value || undefined} />
           <div className="date-picker-footer">
             <button type="button" className="ghost" onClick={() => pick('')}>Clear</button>
@@ -217,7 +258,9 @@ export function DateRangePicker({ value, onChange, placeholder = 'All time', cla
   const [pending, setPending] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   useDismissable(ref, open, () => { setOpen(false); setPending(null); });
+  const openUp = useFlipUp(ref, panelRef, open);
 
   function pick(iso: string) {
     if (pending === null) {
@@ -251,7 +294,7 @@ export function DateRangePicker({ value, onChange, placeholder = 'All time', cla
         <CalendarIcon />
       </button>
       {open && (
-        <div className="date-picker-panel" role="dialog" aria-label="Choose a date range">
+        <div className={`date-picker-panel${openUp ? ' open-up' : ''}`} role="dialog" aria-label="Choose a date range" ref={panelRef}>
           <p className="date-picker-hint">{pending ? `From ${formatDisplay(pending)} — now pick the end` : 'Pick a start day, then an end day'}</p>
           <Calendar
             selected={selected}

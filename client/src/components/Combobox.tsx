@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useFlipUp } from '../hooks/useFlipUp';
 import { useDismissable } from '../hooks/useDismissable';
 
 interface ComboboxProps {
@@ -18,7 +19,9 @@ interface ComboboxProps {
 export function Combobox({ value, options, onChange, placeholder, className }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   useDismissable(ref, open, () => setOpen(false));
+  const openUp = useFlipUp(ref, listRef, open, [value]);
 
   const query = value.trim().toLowerCase();
   const matches = query
@@ -38,7 +41,7 @@ export function Combobox({ value, options, onChange, placeholder, className }: C
         }}
       />
       {open && matches.length > 0 && (
-        <ul className="dropdown-list combobox-list" role="listbox">
+        <ul className={`dropdown-list combobox-list${openUp ? ' open-up' : ''}`} role="listbox" ref={listRef}>
           {matches.map((opt) => (
             <li key={opt}>
               <button

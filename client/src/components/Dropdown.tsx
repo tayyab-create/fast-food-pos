@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useFlipUp } from '../hooks/useFlipUp';
 import { useDismissable } from '../hooks/useDismissable';
 
 function DropdownCaret({ open }: { open: boolean }) {
@@ -45,7 +46,9 @@ export function Dropdown<T extends string | number>({
 }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   useDismissable(ref, open, () => setOpen(false));
+  const openUp = useFlipUp(ref, listRef, open);
 
   const label = displayLabel ?? options.find((o) => o.value === value)?.label ?? String(value);
 
@@ -67,7 +70,7 @@ export function Dropdown<T extends string | number>({
         <DropdownCaret open={open} />
       </button>
       {open && (
-        <ul className="dropdown-list" role="listbox">
+        <ul className={`dropdown-list${openUp ? ' open-up' : ''}`} role="listbox" ref={listRef}>
           {options.map((opt) => (
             <li key={String(opt.value)}>
               <button
@@ -127,7 +130,9 @@ interface MultiSelectDropdownProps {
 export function MultiSelectDropdown({ values, options, onChange, placeholder = 'All', className }: MultiSelectDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   useDismissable(ref, open, () => setOpen(false));
+  const openUp = useFlipUp(ref, listRef, open);
 
   function toggle(opt: string) {
     onChange(values.includes(opt) ? values.filter((v) => v !== opt) : [...values, opt]);
@@ -148,7 +153,7 @@ export function MultiSelectDropdown({ values, options, onChange, placeholder = '
         <DropdownCaret open={open} />
       </button>
       {open && (
-        <ul className="dropdown-list" role="listbox" aria-multiselectable="true">
+        <ul className={`dropdown-list${openUp ? ' open-up' : ''}`} role="listbox" aria-multiselectable="true" ref={listRef}>
           {options.map((opt) => {
             const checked = values.includes(opt);
             return (

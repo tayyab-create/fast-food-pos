@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useFlipUp } from '../hooks/useFlipUp';
 import { useDismissable } from '../hooks/useDismissable';
 
 interface TagInputProps {
@@ -35,20 +36,7 @@ export function TagInput({ value, options, onChange, max = 3, maxLength = 16, pl
     .filter((o) => value.includes(o) || !query || o.toLowerCase().includes(query))
     .sort((a, b) => a.localeCompare(b));
 
-  // The field often sits at the bottom of a scrollable sidebar that would clip
-  // a list opening downward — so measure once on open and flip it upward when
-  // it wouldn't fit inside the nearest scrolling ancestor (or the viewport).
-  const [openUp, setOpenUp] = useState(false);
-  useLayoutEffect(() => {
-    if (!open || !listRef.current) return;
-    const list = listRef.current;
-    let clip: HTMLElement | null = list.parentElement;
-    while (clip && !/(auto|scroll)/.test(getComputedStyle(clip).overflowY)) clip = clip.parentElement;
-    const limit = clip ? clip.getBoundingClientRect().bottom : window.innerHeight;
-    // Measure from the field, not the list — the list moves once flipped.
-    const fieldBottom = ref.current!.getBoundingClientRect().bottom;
-    setOpenUp(fieldBottom + 4 + list.offsetHeight > limit);
-  }, [open, listed.length]);
+  const openUp = useFlipUp(ref, listRef, open, [listed.length]);
 
   function add(raw: string) {
     const tag = raw.trim().slice(0, maxLength);

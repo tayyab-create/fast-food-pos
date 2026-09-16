@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getSummaryReport } from '../api/reports';
 import { getOrders } from '../api/orders';
 import { ActiveFilters } from '../components/ActiveFilters';
-import { BarStrip } from '../components/BarStrip';
+import { Chart } from '../components/Chart';
 import { DateRangePicker, formatDisplay, formatRange, isoDateToLocalDate, toISODate, type DateRange } from '../components/DatePicker';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
@@ -242,10 +242,10 @@ export function Reports() {
 
             <div className="reports-col reports-col-wide">
               <div className="section-header">Orders by hour</div>
-              <BarStrip
+              <Chart
                 name="Orders by hour"
                 emptyMessage={`No sales ${label}.`}
-                bars={report.byHour.map((h, hour) => ({
+                points={report.byHour.map((h, hour) => ({
                   label: hour % 6 === 0 ? String(hour) : '',
                   value: h.count,
                   title: `${hour}:00 — ${h.count} order${h.count === 1 ? '' : 's'}, ${money(h.revenue)}`,
@@ -254,10 +254,11 @@ export function Reports() {
               {multiDay && (
                 <>
                   <div className="section-header">Revenue by day</div>
-                  <BarStrip
+                  <Chart
                     name="Revenue by day"
                     emptyMessage={`No sales ${label}.`}
-                    bars={days.map((d, i) => ({
+                    format={money}
+                    points={days.map((d, i) => ({
                       label: i === 0 || i === days.length - 1 || i % Math.ceil(days.length / 6) === 0 ? formatDisplay(d.date, false) : '',
                       value: d.revenue,
                       title: `${formatDisplay(d.date)} — ${d.count} order${d.count === 1 ? '' : 's'}, ${money(d.revenue)}`,
@@ -268,10 +269,11 @@ export function Reports() {
               {weekSpan && (
                 <>
                   <div className="section-header">Revenue by day of week</div>
-                  <BarStrip
+                  <Chart
                     name="Revenue by day of week"
                     emptyMessage={`No sales ${label}.`}
-                    bars={report.byWeekday.map((d, i) => ({
+                    format={money}
+                    points={report.byWeekday.map((d, i) => ({
                       label: WEEKDAYS[i],
                       value: d.revenue,
                       title: `${WEEKDAYS[i]} — ${d.count} order${d.count === 1 ? '' : 's'}, ${money(d.revenue)}`,

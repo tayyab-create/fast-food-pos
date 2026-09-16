@@ -110,7 +110,7 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
           <span className="num">${order.total.toFixed(2)}</span>
         </div>
         {order.amountTendered !== undefined && (
-          <div className="totals-row">
+          <div className="totals-row change-row">
             <span>Change</span>
             <span className="num">${(order.amountTendered - order.total).toFixed(2)}</span>
           </div>

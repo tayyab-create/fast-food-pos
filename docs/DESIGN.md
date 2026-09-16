@@ -47,6 +47,7 @@ client/                 Vite + React + TypeScript SPA
       NavBar.tsx
     hooks/
       useDismissable.ts       Close-on-outside-click/Escape, shared by every popup component
+      useFlipUp.ts            Opens a popup upward when it wouldn't fit below (every dropdown, combobox, tag list, calendar)
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
       menu.ts, orders.ts, reports.ts   Typed functions per resource
@@ -184,7 +185,7 @@ stays about architecture and data shapes.
     given, voided — each with a ▲/▼ delta against the same-length period
     immediately before the range (green when better, red when worse;
     discounts and voids count "up" as worse; open-ended ranges show no
-    delta). Then top items, sales by order type, and `BarStrip`s for orders
+    delta). Then top items, sales by order type, and `Chart`s for orders
     by hour, revenue by day (when the range spans more than one day) and
     revenue by day of week (when it spans more than a week or is all time).
   - *Items*: every item sold with qty, change in qty vs the previous
@@ -291,6 +292,10 @@ first.
     and Reports' status and order-type filters.
   - Options are rendered as real `<button>`s, so every list is usable from
     the keyboard (Tab/Enter/Space) with no custom key handling.
+  - Every popup in the app (these lists, `Combobox`, `TagInput`, both date
+    pickers) goes through `useFlipUp`: on open it measures the room below the
+    anchor inside the nearest scrolling container or the viewport, and opens
+    upward when the list wouldn't fit.
   - The dropdown list sizes to its content (`width: max-content`, capped at
     `max-width: 320px`) rather than locking to the toggle's width, so a
     longer label (e.g. "Custom…") isn't clipped when the toggle itself is
@@ -311,10 +316,12 @@ first.
   Takes `{ value: string[], options, onChange, max?, maxLength?,
   placeholder?, disabled? }`. Used for menu-item tags in both the edit form
   and the detail view.
-- **`BarStrip`** (`components/BarStrip.tsx`) — a row of thin bars scaled
-  to the tallest (`{ label, value, title }[]`), pure CSS heights with the
-  exact figure on hover. Used by Reports for orders by hour, revenue by day
-  and revenue by day of week.
+- **`Chart`** (`components/Chart.tsx`) — bars or a line over the same
+  `{ label, value, title }[]` points, 140px tall, with values written on the
+  chart wherever there's room (every bar up to 16 points, thinned beyond
+  that, the peak always). A two-button style toggle sits in the chart's
+  corner and is remembered per chart in localStorage. Used by Reports for
+  orders by hour, revenue by day and revenue by day of week.
 - **`downloadCsv()`** (`csv.ts`) — builds a CSV from rows (quoting as
   needed, UTF-8 BOM so Excel keeps × and —) and triggers a download. All
   Reports exports go through it.
@@ -329,6 +336,9 @@ first.
   `isoDateToLocalDate()` — use it (not `new Date(iso)`, which parses a bare
   date as UTC) whenever a picked date is compared against timestamps. An
   optional `max` (ISO) disables later days and the next-month arrow past it.
+  Clicking the month title swaps the grid for a 12-year picker (paged with
+  the same arrows, years past `max` disabled) so distant dates don't take
+  dozens of clicks.
   - **`DateRangePicker`** (same file) shares the month grid: the first click
     sets one end, the second the other (either order), with the span tinted
     as you hover; footer presets for Today, Last 7 days, This month and All
