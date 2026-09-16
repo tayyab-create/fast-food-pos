@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { Dropdown } from './Dropdown';
 
 export interface LedgerColumn<T> {
   header: string;
@@ -125,24 +126,21 @@ export function LedgerTable<T>({
                 onBlur={() => setCustomPageSize(false)}
               />
             ) : (
-              <select
-                value={pageSizeOptions.includes(pageSize) ? pageSize : 'custom'}
-                onChange={(e) => {
-                  if (e.target.value === 'custom') {
+              <Dropdown
+                value={pageSizeOptions.includes(pageSize) ? String(pageSize) : 'custom'}
+                options={[
+                  ...pageSizeOptions.map((n) => ({ value: String(n), label: String(n) })),
+                  { value: 'custom', label: 'Custom…' },
+                ]}
+                onChange={(v) => {
+                  if (v === 'custom') {
                     setCustomPageSize(true);
                   } else {
-                    setPageSize(Number(e.target.value));
+                    setPageSize(Number(v));
                     setPage(0);
                   }
                 }}
-              >
-                {pageSizeOptions.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-                <option value="custom">Custom…</option>
-              </select>
+              />
             )}
           </div>
         )}

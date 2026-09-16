@@ -7,6 +7,8 @@ import {
   updateMenuItem,
   uploadMenuItemImage,
 } from '../api/menu';
+import { Combobox } from '../components/Combobox';
+import { Dropdown, MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
 import type { MenuItem, Variant } from '../types';
 
@@ -21,6 +23,7 @@ interface FormState {
   variants: Variant[];
   isCombo: boolean;
   comboItems: string[];
+  available: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -31,6 +34,7 @@ const EMPTY_FORM: FormState = {
   variants: [],
   isCombo: false,
   comboItems: [],
+  available: true,
 };
 
 function describe(item: MenuItem): string {
@@ -47,7 +51,7 @@ export function Menu() {
   const [mode, setMode] = useState<Mode>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [comboSearch, setComboSearch] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -104,6 +108,7 @@ export function Menu() {
       variants: item.variants ?? [],
       isCombo: !!item.isCombo,
       comboItems: item.comboItems ?? [],
+      available: item.available !== false,
     });
     resetImageState(item.image);
     setFormError(null);
@@ -223,6 +228,7 @@ export function Menu() {
       variants: form.hasVariants ? form.variants.filter((v) => v.name) : [],
       isCombo: form.isCombo,
       comboItems: form.isCombo ? form.comboItems : [],
+      available: form.available,
     };
     try {
       const saved = mode === 'edit' && selectedId
@@ -243,6 +249,11 @@ export function Menu() {
     }
   }
 
+  async function toggleAvailable(item: MenuItem) {
+    await updateMenuItem(item._id, { available: item.available === false });
+    load();
+  }
+
   async function confirmDelete(item: MenuItem) {
     const affected = combosReferencing(item.name);
     const message = affected.length
@@ -257,9 +268,9 @@ export function Menu() {
     load();
   }
 
-  const categories = ['All', ...new Set(items.map((i) => i.category))];
+  const distinctCategories = [...new Set(items.map((i) => i.category))];
   const filteredItems = items
-    .filter((i) => categoryFilter === 'All' || i.category === categoryFilter)
+    .filter((i) => categoryFilters.length === 0 || categoryFilters.includes(i.category))
     .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
 
   const comboCandidates = items
@@ -280,11 +291,7 @@ export function Menu() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+          <MultiSelectDropdown values={categoryFilters} options={distinctCategories} onChange={setCategoryFilters} />
         </div>
 
         <LedgerTable
@@ -294,7 +301,15 @@ export function Menu() {
               render: (i: MenuItem) =>
                 i.image ? <img className="menu-avatar" src={i.image} alt="" /> : <span className="menu-avatar-empty" />,
             },
-            { header: 'Item', render: (i: MenuItem) => i.name },
+            {
+              header: 'Item',
+              render: (i: MenuItem) => (
+                <>
+                  {i.name}
+                  {i.available === false && <span className="muted-text"> (86'd)</span>}
+                </>
+              ),
+            },
             { header: 'Category', render: (i: MenuItem) => i.category },
             {
               header: 'Price',
@@ -311,6 +326,8 @@ export function Menu() {
           onRowClick={selectItem}
           isRowSelected={(i) => i._id === selectedId}
           emptyMessage="No items match."
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50]}
         />
       </div>
 
@@ -331,10 +348,11 @@ export function Menu() {
               </label>
               <label>
                 Category
-                <input
+                <Combobox
                   className={fieldErrors.category ? 'invalid' : undefined}
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  options={distinctCategories}
+                  onChange={(category) => setForm({ ...form, category })}
                 />
                 {fieldErrors.category && <p className="field-error">{fieldErrors.category}</p>}
               </label>
@@ -366,6 +384,14 @@ export function Menu() {
               {imageError && <p className="field-error">{imageError}</p>}
             </div>
 
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={form.available}
+                onChange={(e) => setForm({ ...form, available: e.target.checked })}
+              />
+              Available for sale
+            </label>
             <label className="checkbox-line">
               <input
                 type="checkbox"
@@ -429,16 +455,12 @@ export function Menu() {
                         <input type="checkbox" checked={!!entry} readOnly />
                         <span className="combo-picker-name">{i.name}</span>
                         {i.variants?.length ? (
-                          <select
-                            value={selectedVariant}
+                          <Dropdown
+                            value={selectedVariant ?? ''}
                             disabled={!entry}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setComboVariant(i, e.target.value)}
-                          >
-                            {i.variants.map((v) => (
-                              <option key={v.name} value={v.name}>{v.name} (${v.price.toFixed(2)})</option>
-                            ))}
-                          </select>
+                            options={i.variants.map((v) => ({ value: v.name, label: `${v.name} ($${v.price.toFixed(2)})` }))}
+                            onChange={(name) => setComboVariant(i, name)}
+                          />
                         ) : (
                           <span className="num">${i.price.toFixed(2)}</span>
                         )}
@@ -481,6 +503,9 @@ export function Menu() {
             )}
             <div className="form-actions">
               <button className="ghost" onClick={() => openEdit(selected)}>Edit</button>
+              <button className="ghost" onClick={() => toggleAvailable(selected)}>
+                {selected.available === false ? 'Mark available' : "Mark 86'd"}
+              </button>
               <button className="ghost danger" onClick={() => confirmDelete(selected)}>Delete</button>
             </div>
           </>

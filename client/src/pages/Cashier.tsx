@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getMenu } from '../api/menu';
 import { createOrder } from '../api/orders';
 import { OrderDetailModal } from '../components/OrderDetailModal';
-import type { Discount, MenuItem, Order, OrderItem, PaymentMethod } from '../types';
+import type { Discount, MenuItem, Order, OrderItem, OrderType, PaymentMethod } from '../types';
 
 const ALL = 'All';
 
@@ -51,7 +51,11 @@ export function Cashier() {
   const [discountReason, setDiscountReason] = useState('');
   const [urgent, setUrgent] = useState(false);
   const [orderNote, setOrderNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>('cash');
+  const [orderType, setOrderType] = useState<OrderType>('takeout');
+  const [showMore, setShowMore] = useState(false);
+  const [showPay, setShowPay] = useState(false);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('cash');
+  const [tenderedStr, setTenderedStr] = useState('');
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(loadHeldOrders);
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
@@ -63,9 +67,17 @@ export function Cashier() {
     localStorage.setItem(HELD_ORDERS_KEY, JSON.stringify(heldOrders));
   }, [heldOrders]);
 
+  useEffect(() => {
+    if (showPay) {
+      setPayMethod('cash');
+      setTenderedStr('');
+    }
+  }, [showPay]);
+
   const categories = useMemo(() => [ALL, ...new Set(menu.map((i) => i.category))], [menu]);
 
   const visibleItems = menu
+    .filter((i) => i.available !== false)
     .filter((i) => activeCategory === ALL || i.category === activeCategory)
     .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -127,7 +139,8 @@ export function Cashier() {
     setDiscountReason(empty.discountReason);
     setUrgent(empty.urgent);
     setOrderNote(empty.orderNote);
-    setPaymentMethod('cash');
+    setOrderType('takeout');
+    setShowMore(false);
   }
 
   function resumeOrder(held: HeldOrder) {
@@ -137,7 +150,7 @@ export function Cashier() {
     setDiscountReason(held.discountReason);
     setUrgent(held.urgent);
     setOrderNote(held.orderNote);
-    setPaymentMethod('cash');
+    setOrderType('takeout');
     setHeldOrders((prev) => prev.filter((h) => h.id !== held.id));
   }
 
@@ -169,16 +182,24 @@ export function Cashier() {
     ? { type: discountType, value: discountValueNum, reason: discountReason || undefined }
     : undefined;
 
-  async function checkout() {
-    if (discountError || !paymentMethod) return;
-    const order = await createOrder(cart, { discount, urgent, note: orderNote || undefined, paymentMethod });
+  const tenderedNum = Number(tenderedStr) || 0;
+  const changeDue = tenderedNum - total;
+  const isTenderedSufficient = tenderedStr !== '' && tenderedNum >= total;
+
+  async function checkout(method: PaymentMethod, amountTendered?: number) {
+    if (discountError) return;
+    const order = await createOrder(cart, {
+      discount, urgent, note: orderNote || undefined, paymentMethod: method, orderType, amountTendered,
+    });
     setCart([]);
     setDiscountType(null);
     setDiscountValue('');
     setDiscountReason('');
     setUrgent(false);
     setOrderNote('');
-    setPaymentMethod('cash');
+    setOrderType('takeout');
+    setShowMore(false);
+    setShowPay(false);
     setPlacedOrder(order);
   }
 
@@ -188,23 +209,36 @@ export function Cashier() {
 
   useEffect(() => {
     // Only fires outside a text field, so Enter while typing a note/search/discount
-    // value does its normal job (confirm the field) instead of placing the order.
+    // value does its normal job (confirm the field) instead of opening Pay.
     // The confirmation modal has its own Enter/Escape handling (OrderDetailModal).
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Enter' || placedOrder) return;
+      if (placedOrder) return;
+      if (e.key === 'Escape' && (showPay || showMore)) {
+        setShowPay(false);
+        setShowMore(false);
+        return;
+      }
+      if (e.key !== 'Enter' || showMore) return;
       const target = e.target as HTMLElement;
       // Buttons already handle their own Enter via the native click; only INPUT/
       // TEXTAREA need excluding to keep typing safe, and BUTTON to avoid a double-fire
-      // when focus happens to be on the checkout button itself.
+      // when focus happens to be on the Pay button itself.
       const handlesOwnEnter = ['INPUT', 'TEXTAREA', 'BUTTON'].includes(target.tagName);
-      if (!handlesOwnEnter && cart.length > 0 && !discountError && paymentMethod) {
+      if (showPay) {
+        // The tendered field is itself an input, but Enter there should confirm
+        // the payment (the expected next step), not be swallowed like other fields.
+        if (handlesOwnEnter && !target.classList.contains('tendered-input')) return;
+        if (payMethod === 'cash' && !isTenderedSufficient) return;
         e.preventDefault();
-        checkout();
+        checkout(payMethod, payMethod === 'cash' ? tenderedNum : undefined);
+      } else if (!handlesOwnEnter && cart.length > 0 && !discountError) {
+        e.preventDefault();
+        setShowPay(true);
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [placedOrder, cart, discountError, paymentMethod, discount, urgent, orderNote]);
+  }, [placedOrder, cart, discountError, discount, urgent, orderNote, orderType, showPay, showMore, payMethod, isTenderedSufficient, tenderedNum]);
 
   return (
     <div className="pos-layout">
@@ -287,6 +321,28 @@ export function Cashier() {
             <span className="order-summary">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
           )}
         </div>
+
+        <div className="option-row compact order-type-row">
+          <button
+            className={orderType === 'dine-in' ? 'active' : ''}
+            onClick={() => setOrderType('dine-in')}
+          >
+            Dine-in
+          </button>
+          <button
+            className={orderType === 'takeout' ? 'active' : ''}
+            onClick={() => setOrderType('takeout')}
+          >
+            Takeout
+          </button>
+          <button
+            className={orderType === 'delivery' ? 'active' : ''}
+            onClick={() => setOrderType('delivery')}
+          >
+            Delivery
+          </button>
+        </div>
+
         <div className="ledger-lines">
           {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
           {cart.map((line) => (
@@ -330,82 +386,9 @@ export function Cashier() {
         </div>
 
         {cart.length > 0 && (
-          <div className="order-options">
-            <label className="checkbox-line">
-              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
-              Mark order urgent
-            </label>
-            <input
-              className="order-note-input"
-              placeholder="Order note (e.g. customer waiting outside)"
-              value={orderNote}
-              onChange={(e) => setOrderNote(e.target.value)}
-            />
-          </div>
-        )}
-
-        {cart.length > 0 && (
-          <div className="discount-block">
-            <div className="section-header">Discount</div>
-            <div className="option-row">
-              <button
-                className={discountType === 'percent' ? 'active' : ''}
-                onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
-              >
-                Percent
-              </button>
-              <button
-                className={discountType === 'flat' ? 'active' : ''}
-                onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
-              >
-                Flat $
-              </button>
-            </div>
-            {discountType && (
-              <div className="discount-value">
-                <span className={`discount-unit-field${discountError ? ' invalid' : ''}`}>
-                  {discountType === 'flat' && <span className="discount-unit">$</span>}
-                  <input
-                    type="number"
-                    min="0"
-                    max={discountType === 'percent' ? 100 : undefined}
-                    className="num"
-                    placeholder={discountType === 'percent' ? '10' : '5.00'}
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                  />
-                  {discountType === 'percent' && <span className="discount-unit">%</span>}
-                </span>
-                <input
-                  className="discount-reason-input"
-                  placeholder="Reason (e.g. staff discount)"
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                />
-              </div>
-            )}
-            {discountError && <p className="field-error">{discountError}</p>}
-          </div>
-        )}
-
-        {cart.length > 0 && (
-          <div className="payment-block">
-            <div className="section-header">Payment method</div>
-            <div className="option-row">
-              <button
-                className={paymentMethod === 'cash' ? 'active' : ''}
-                onClick={() => setPaymentMethod('cash')}
-              >
-                Cash
-              </button>
-              <button
-                className={paymentMethod === 'card' ? 'active' : ''}
-                onClick={() => setPaymentMethod('card')}
-              >
-                Card
-              </button>
-            </div>
-          </div>
+          <button className="ghost more-toggle" onClick={() => setShowMore(true)}>
+            ⋯ More {(urgent || discountType || orderNote) && <span className="more-dot" />}
+          </button>
         )}
 
         <div className="totals-block">
@@ -432,13 +415,145 @@ export function Cashier() {
           <button
             className="primary"
             style={{ flex: 1 }}
-            disabled={cart.length === 0 || !!discountError || !paymentMethod}
-            onClick={checkout}
+            disabled={cart.length === 0 || !!discountError}
+            onClick={() => setShowPay(true)}
           >
-            Place order
+            Pay
           </button>
         </div>
       </div>
+
+      {showMore && (
+        <div className="modal-overlay" onClick={() => setShowMore(false)}>
+          <div className="modal more-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>More options</h2>
+            <label className="checkbox-line">
+              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
+              Mark order urgent
+            </label>
+
+            <input
+              className="order-note-input"
+              placeholder="Order note (e.g. customer waiting outside)"
+              value={orderNote}
+              onChange={(e) => setOrderNote(e.target.value)}
+            />
+
+            <div className="discount-block">
+              <div className="section-header">Discount</div>
+              <div className="option-row">
+                <button
+                  className={discountType === 'percent' ? 'active' : ''}
+                  onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
+                >
+                  Percent
+                </button>
+                <button
+                  className={discountType === 'flat' ? 'active' : ''}
+                  onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
+                >
+                  Flat $
+                </button>
+              </div>
+              {discountType && (
+                <div className="discount-value">
+                  <span className={`discount-unit-field${discountError ? ' invalid' : ''}`}>
+                    {discountType === 'flat' && <span className="discount-unit">$</span>}
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === 'percent' ? 100 : undefined}
+                      className="num"
+                      autoFocus
+                      placeholder={discountType === 'percent' ? '10' : '5.00'}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                    />
+                    {discountType === 'percent' && <span className="discount-unit">%</span>}
+                  </span>
+                  <input
+                    className="discount-reason-input"
+                    placeholder="Reason (e.g. staff discount)"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                  />
+                </div>
+              )}
+              {discountError && <p className="field-error">{discountError}</p>}
+            </div>
+
+            <button className="primary" style={{ marginTop: 14, width: '100%' }} onClick={() => setShowMore(false)}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPay && (
+        <div className="modal-overlay" onClick={() => setShowPay(false)}>
+          <div className="modal pay-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Take payment</h2>
+
+            <div className="pay-total-display">
+              <span>Amount due</span>
+              <span className="pay-total-amount">${total.toFixed(2)}</span>
+            </div>
+
+            <div className="pay-tabs">
+              <button
+                className={payMethod === 'cash' ? 'active' : ''}
+                onClick={() => setPayMethod('cash')}
+              >
+                Cash
+              </button>
+              <button
+                className={payMethod === 'card' ? 'active' : ''}
+                onClick={() => setPayMethod('card')}
+              >
+                Card
+              </button>
+            </div>
+
+            {payMethod === 'cash' ? (
+              <div className="pay-cash-section">
+                <span className="pay-amount-field">
+                  <span className="discount-unit">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="num tendered-input"
+                    autoFocus
+                    placeholder="0.00"
+                    value={tenderedStr}
+                    onChange={(e) => setTenderedStr(e.target.value)}
+                  />
+                </span>
+                <div className={`pay-change-row${tenderedStr ? (isTenderedSufficient ? ' positive' : ' negative') : ''}`}>
+                  <span>Change due</span>
+                  <span className="num">${tenderedStr ? Math.max(0, changeDue).toFixed(2) : '0.00'}</span>
+                </div>
+                <button
+                  className="primary"
+                  disabled={!isTenderedSufficient}
+                  onClick={() => checkout('cash', tenderedNum)}
+                >
+                  Confirm payment
+                </button>
+              </div>
+            ) : (
+              <div className="pay-card-section">
+                <p className="hint">Process the card on the terminal, then confirm here.</p>
+                <button className="primary" onClick={() => checkout('card')}>
+                  Confirm payment
+                </button>
+              </div>
+            )}
+
+            <button className="ghost" onClick={() => setShowPay(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {placedOrder && (
         <OrderDetailModal order={placedOrder} onClose={startNewOrder} confirmed closeLabel="New order" />

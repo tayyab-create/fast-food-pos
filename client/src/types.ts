@@ -12,6 +12,7 @@ export interface MenuItem {
   isCombo?: boolean;
   comboItems?: string[];
   image?: string;
+  available?: boolean;
 }
 
 export interface OrderItem {
@@ -31,6 +32,7 @@ export interface Discount {
 }
 
 export type PaymentMethod = 'cash' | 'card';
+export type OrderType = 'dine-in' | 'takeout' | 'delivery';
 
 export interface Order {
   _id: string;
@@ -40,6 +42,8 @@ export interface Order {
   discount?: Discount;
   total: number;
   paymentMethod: PaymentMethod;
+  orderType?: OrderType;
+  amountTendered?: number;
   urgent?: boolean;
   note?: string;
   status: OrderStatus;

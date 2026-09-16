@@ -24,6 +24,16 @@
 
 * { box-sizing: border-box; }
 
+/* Thin, flat scrollbars matching the hairline/no-shadow visual style */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--radius); }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
 body {
   margin: 0;
   font-family: var(--font-ui);
@@ -131,7 +141,7 @@ button.icon { border: none; background: none; padding: 2px 8px; font-size: 1rem;
 button.icon:hover { background: none; color: var(--danger); }
 button.danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
 
-input, select {
+input:not([type="checkbox"]), select {
   font-family: var(--font-ui);
   font-size: 13.5px;
   border: 1px solid var(--line-strong);
@@ -140,6 +150,37 @@ input, select {
   background: var(--surface);
   color: var(--ink);
 }
+input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+input[type="checkbox"]:hover { border-color: var(--forest); }
+input[type="checkbox"]:checked { background: var(--forest-dark); border-color: var(--forest-dark); }
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--forest-tint); }
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:focus, select:focus, button:focus-visible {
   outline: none;
   border-color: var(--forest);
@@ -216,6 +257,7 @@ table.ledger th.sortable:hover { color: var(--ink); }
   min-width: 64px;
 }
 .ledger-pagination-custom { width: 70px; }
+.ledger-pagination-size .dropdown-toggle { padding: 3px 6px; font-size: 12px; min-width: 64px; }
 .ledger-pagination-page { white-space: nowrap; margin-left: auto; }
 .ledger-pagination-controls { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .ledger-pagination-controls button {
@@ -349,7 +391,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   padding-bottom: 10px;
   flex-shrink: 0;
 }
-.order-options, .discount-block, .payment-block, .totals-block, .checkout-row, .held-orders, .ledger-sheet > button.primary {
+.discount-block, .totals-block, .checkout-row, .held-orders, .more-toggle, .order-type-row, .ledger-sheet > button.primary {
   flex-shrink: 0;
 }
 .ledger-sheet-header h2 { margin: 0; border: none; padding: 0; }
@@ -357,10 +399,89 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 
 .ledger-sheet .empty { color: var(--muted); font-size: 13px; }
 
-.order-options {
-  margin-top: 16px;
-}
+.order-type-row { margin-bottom: 14px; }
 .order-note-input { width: 100%; margin-top: 8px; }
+
+.more-toggle { font-size: 12.5px; padding: 5px 12px; margin-top: 16px; align-self: flex-start; }
+.more-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--forest);
+  vertical-align: middle;
+}
+.more-modal .checkbox-line { margin: 0 0 12px; }
+.more-modal .discount-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+.pay-modal { max-width: 360px; }
+
+.pay-total-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 18px;
+  padding: 18px;
+  background: var(--forest-tint);
+  border-radius: var(--radius);
+}
+.pay-total-display > span:first-child {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--forest-dark);
+}
+.pay-total-amount { font-family: var(--font-num); font-size: 32px; font-weight: 600; color: var(--ink); }
+
+.pay-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.pay-tabs button {
+  flex: 1;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 10px 0;
+  color: var(--muted);
+}
+.pay-tabs button:hover { background: none; color: var(--ink); }
+.pay-tabs button.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--forest-dark); }
+
+.pay-cash-section, .pay-card-section { display: flex; flex-direction: column; gap: 12px; }
+.pay-amount-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 0 12px;
+}
+.pay-amount-field:focus-within { border-color: var(--forest); box-shadow: 0 0 0 3px var(--forest-tint); }
+.pay-amount-field .discount-unit { font-size: 20px; }
+.pay-amount-field input.num {
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 20px;
+  width: 100%;
+}
+.pay-amount-field input.num:focus { box-shadow: none; }
+
+.pay-change-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.pay-change-row.positive { background: var(--forest-tint); border-color: var(--forest); color: var(--forest-dark); }
+.pay-change-row.negative { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+
+.pay-card-section .hint { margin: 0; text-align: center; }
+.pay-cash-section .primary, .pay-card-section .primary { padding: 12px; }
+.pay-modal > .ghost { width: 100%; margin-top: 10px; }
 .ledger-lines {
   flex: 1 1 auto;
   min-height: 0;
@@ -386,10 +507,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   text-align: center;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  -moz-appearance: textfield;
 }
-.ledger-line .qty-input::-webkit-inner-spin-button,
-.ledger-line .qty-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .ledger-line .name { flex: 1; font-size: 13px; }
 .ledger-line .line-total { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .ledger-line button.icon { font-size: 13px; padding: 2px 6px; flex-shrink: 0; }
@@ -428,16 +546,18 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 }
 .total-row .num { font-weight: 600; color: white; }
 
-.discount-block, .payment-block {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+.discount-block {
+  margin-top: 8px;
 }
 .discount-block .discount-value { display: flex; gap: 8px; margin-top: 8px; }
 .discount-block .discount-value input:not(.num) { flex: 1; }
+
+.option-row.compact { gap: 6px; }
+.option-row.compact button { flex: 1; padding: 5px 10px; font-size: 12.5px; }
 .discount-unit-field {
   display: flex;
   align-items: center;
+  gap: 4px;
   width: 96px;
   flex: 0 0 96px;
   border: 1px solid var(--line-strong);
@@ -463,7 +583,7 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .discount-unit-field input.num:focus { box-shadow: none; }
 .discount-unit { color: var(--muted); font-family: var(--font-num); font-size: 13px; flex-shrink: 0; }
 
-.checkout-row { display: flex; gap: 10px; margin-top: 14px; }
+.checkout-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 
 .held-orders {
   display: flex;
@@ -550,9 +670,15 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .kds-board {
   display: flex;
   gap: 24px;
-  align-items: flex-start;
+  align-items: stretch;
 }
-.kds-column { flex: 1; min-width: 0; }
+.kds-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 190px);
+}
 .kds-column-header {
   display: flex;
   justify-content: space-between;
@@ -564,9 +690,16 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-soft);
+  flex-shrink: 0;
 }
 .kds-column-header .count { font-family: var(--font-num); color: var(--muted); }
-.kds-tickets { display: flex; flex-direction: column; gap: 12px; }
+.kds-tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .kds-empty { color: var(--muted); font-size: 13px; }
 
 .ticket {
@@ -592,6 +725,17 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   letter-spacing: 0.04em;
   color: white;
   background: var(--danger);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.order-type-tag {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -653,6 +797,96 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 }
 .filter-bar input { flex: 1; }
 .filter-bar select { min-width: 150px; }
+.filter-bar .dropdown { min-width: 150px; }
+
+/* Custom listbox dropdown — used where the option list can grow past what a
+   native <select> popup can be scroll-capped to (that popup is OS-rendered,
+   not styleable with CSS). */
+.dropdown { position: relative; }
+.dropdown-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.dropdown-toggle:hover { background: var(--surface); border-color: var(--forest); }
+.dropdown-toggle:disabled {
+  cursor: not-allowed;
+  background: var(--disabled-fill);
+  color: var(--ink-soft);
+  border-color: var(--line-strong);
+}
+.dropdown-caret { color: var(--muted); font-size: 11px; transition: transform 0.1s; }
+.dropdown-caret.open { transform: rotate(180deg); }
+.dropdown-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 320px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+.dropdown-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.dropdown-list li + li { border-top: 1px solid var(--line); }
+.dropdown-list li:hover { background: var(--forest-tint); }
+.dropdown-list li.selected { background: var(--forest-tint); color: var(--forest-dark); font-weight: 500; }
+
+.combobox { position: relative; width: 100%; }
+.combobox input { width: 100%; }
+.combobox-list { width: 100%; max-width: none; }
+
+.dropdown-check {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--surface);
+  position: relative;
+}
+.dropdown-check.checked {
+  background: var(--forest-dark);
+  border-color: var(--forest-dark);
+}
+.dropdown-check.checked::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
 
 .detail-row {
   display: flex;
@@ -704,37 +938,6 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   margin: 14px 0;
   cursor: pointer;
 }
-.checkbox-line input[type="checkbox"] {
-  appearance: none;
-  position: relative;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.checkbox-line input[type="checkbox"]:checked {
-  background: var(--forest-dark);
-  border-color: var(--forest-dark);
-}
-.checkbox-line input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 5px;
-  width: 4px;
-  height: 8px;
-  border: solid white;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
-}
-.checkbox-line input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--forest-tint);
-}
 
 .variant-editor { margin: 8px 0 4px; display: flex; flex-direction: column; gap: 8px; }
 .variant-editor-row { display: flex; gap: 8px; align-items: center; }
@@ -746,6 +949,7 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 .combo-picker-list {
   max-height: 220px;
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--line);
 }
 .combo-picker-row {
@@ -760,6 +964,15 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 .combo-picker-row:last-child { border-bottom: none; }
 .combo-picker-row:hover { background: var(--paper); }
 .combo-picker-name { flex: 1; }
+.combo-picker-row .dropdown { flex: 0 0 auto; min-width: 130px; max-width: 170px; }
+.combo-picker-row .dropdown-toggle span:first-child {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.combo-picker-row .dropdown-list { right: 0; left: auto; width: 190px; }
 
 .form-actions { display: flex; gap: 10px; margin-top: 20px; }
 

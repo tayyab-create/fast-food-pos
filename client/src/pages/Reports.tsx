@@ -102,6 +102,12 @@ export function Reports() {
                 sortValue: (o) => (o.discount ? (o.discount.type === 'percent' ? o.discount.value : o.discount.value) : -1),
               },
               {
+                header: 'Type',
+                width: '90px',
+                render: (o) => o.orderType ?? '—',
+                sortValue: (o) => o.orderType ?? '',
+              },
+              {
                 header: 'Status',
                 render: (o) => <span className={`status-pill ${o.status}`}>{o.status}</span>,
                 sortValue: (o) => o.status,

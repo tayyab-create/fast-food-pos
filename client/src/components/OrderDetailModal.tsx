@@ -105,10 +105,28 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
             <span>Payment</span>
             <span>{order.paymentMethod === 'cash' ? 'Cash' : order.paymentMethod === 'card' ? 'Card' : '—'}</span>
           </div>
+          {order.orderType && (
+            <div className="totals-row">
+              <span>Order type</span>
+              <span style={{ textTransform: 'capitalize' }}>{order.orderType}</span>
+            </div>
+          )}
+          {order.amountTendered !== undefined && (
+            <div className="totals-row">
+              <span>Tendered</span>
+              <span className="num">${order.amountTendered.toFixed(2)}</span>
+            </div>
+          )}
           <div className="total-row">
             <span>Total</span>
             <span className="num">${order.total.toFixed(2)}</span>
           </div>
+          {order.amountTendered !== undefined && (
+            <div className="totals-row">
+              <span>Change</span>
+              <span className="num">${(order.amountTendered - order.total).toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         <div className="checkout-row">

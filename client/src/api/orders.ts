@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Discount, Order, OrderItem, OrderStatus, PaymentMethod } from '../types';
+import type { Discount, Order, OrderItem, OrderStatus, OrderType, PaymentMethod } from '../types';
 
 export const getOrders = (status?: OrderStatus) =>
   api.get<Order[]>(status ? `/orders?status=${status}` : '/orders');
@@ -9,6 +9,8 @@ interface CreateOrderOptions {
   urgent?: boolean;
   note?: string;
   paymentMethod: PaymentMethod;
+  orderType?: OrderType;
+  amountTendered?: number;
 }
 
 export const createOrder = (items: OrderItem[], options?: CreateOrderOptions) =>

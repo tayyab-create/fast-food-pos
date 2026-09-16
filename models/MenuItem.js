@@ -8,4 +8,5 @@ module.exports = mongoose.model('MenuItem', new mongoose.Schema({
   isCombo: { type: Boolean, default: false },
   comboItems: [String],
   image: String,
+  available: { type: Boolean, default: true },
 }));

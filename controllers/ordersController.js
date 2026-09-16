@@ -18,6 +18,7 @@ function resolveItem(rawItem, menu) {
   // that themselves contain parentheses (e.g. "Chicken Nuggets (6pc)").
   const exact = menu.find((m) => m.name === name && !m.variants?.length);
   if (exact) {
+    if (exact.available === false) return { error: `"${name}" is currently unavailable` };
     return { item: buildItem(name, exact.price, qty, exact.isCombo ? exact.comboItems : undefined, rawItem?.note) };
   }
 
@@ -28,6 +29,7 @@ function resolveItem(rawItem, menu) {
     const menuItem = menu.find((m) => m.name === baseName);
     const variant = menuItem?.variants?.find((v) => v.name === variantName);
     if (variant) {
+      if (menuItem.available === false) return { error: `"${name}" is currently unavailable` };
       return { item: buildItem(name, variant.price, qty, undefined, rawItem?.note) };
     }
   }
@@ -64,14 +66,21 @@ function applyDiscount(discount, subtotal) {
 }
 
 const PAYMENT_METHODS = ['cash', 'card'];
+const ORDER_TYPES = ['dine-in', 'takeout', 'delivery'];
 
 async function create(req, res) {
-  const { items: rawItems, discount, urgent, note, paymentMethod } = req.body;
+  const { items: rawItems, discount, urgent, note, paymentMethod, orderType, amountTendered } = req.body;
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'Order must have at least one item' });
   }
   if (!PAYMENT_METHODS.includes(paymentMethod)) {
     return res.status(400).json({ error: 'Payment method must be cash or card' });
+  }
+  if (orderType !== undefined && !ORDER_TYPES.includes(orderType)) {
+    return res.status(400).json({ error: 'Invalid order type' });
+  }
+  if (amountTendered !== undefined && !(Number(amountTendered) >= 0)) {
+    return res.status(400).json({ error: 'Invalid amount tendered' });
   }
 
   const menu = await MenuItem.find();
@@ -86,13 +95,19 @@ async function create(req, res) {
   const { error: discountError, total, reason } = applyDiscount(discount, subtotal);
   if (discountError) return res.status(400).json({ error: discountError });
   if (discount) discount.reason = reason;
+  if (paymentMethod === 'cash' && amountTendered !== undefined && Number(amountTendered) < total) {
+    return res.status(400).json({ error: 'Amount tendered is less than the total' });
+  }
   const counter = await Counter.findOneAndUpdate(
     { _id: 'orderNumber' },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: 'after' }
   );
   const orderNumber = counter.seq;
-  const order = await Order.create({ items, subtotal, discount, total, orderNumber, urgent, note, paymentMethod });
+  const order = await Order.create({
+    items, subtotal, discount, total, orderNumber, urgent, note, paymentMethod, orderType,
+    amountTendered: paymentMethod === 'cash' ? amountTendered : undefined,
+  });
   res.status(201).json(order);
 }
 

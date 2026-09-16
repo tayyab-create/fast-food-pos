@@ -7,6 +7,8 @@ const menu = [
   { name: 'Chicken Nuggets (6pc)', price: 4.99 },
   { name: 'Combo Meal', price: 8.99, isCombo: true, comboItems: ['Cheeseburger', 'Fries (Large)'] },
   { name: 'Pizza', price: 0, variants: [{ name: 'Medium', price: 7.99 }, { name: 'Large', price: 9.99 }] },
+  { name: 'Sold Out Burger', price: 6.99, available: false },
+  { name: 'Sold Out Pizza', price: 0, available: false, variants: [{ name: 'Medium', price: 7.99 }] },
 ];
 
 test('resolveItem resolves a plain menu item at the catalog price, ignoring a spoofed price', () => {
@@ -49,6 +51,11 @@ test('resolveItem rejects an unknown item name', () => {
 test('resolveItem rejects an unknown variant of a known item', () => {
   const { error } = resolveItem({ name: 'Pizza (Small)', qty: 1 }, menu);
   assert.match(error, /Unknown menu item/);
+});
+
+test('resolveItem rejects an item marked unavailable, plain or variant', () => {
+  assert.match(resolveItem({ name: 'Sold Out Burger', qty: 1 }, menu).error, /unavailable/);
+  assert.match(resolveItem({ name: 'Sold Out Pizza (Medium)', qty: 1 }, menu).error, /unavailable/);
 });
 
 test('resolveItem truncates a note to 200 chars and drops a non-string note', () => {

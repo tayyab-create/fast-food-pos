@@ -34,7 +34,7 @@ async function create(req, res) {
   res.status(201).json(item);
 }
 
-const UPDATABLE_FIELDS = ['name', 'price', 'category', 'variants', 'isCombo', 'comboItems'];
+const UPDATABLE_FIELDS = ['name', 'price', 'category', 'variants', 'isCombo', 'comboItems', 'available'];
 
 async function update(req, res) {
   const error = validateFields(req.body);

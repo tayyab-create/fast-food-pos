@@ -136,6 +136,9 @@ export function Kitchen() {
                       <div className="ticket-header">
                         <span className="ticket-number">
                           #{o.orderNumber ?? o._id.slice(-5)}
+                          {o.orderType && o.orderType !== 'takeout' && (
+                            <span className="order-type-tag">{o.orderType}</span>
+                          )}
                           {o.urgent && <span className="urgent-tag">Urgent</span>}
                         </span>
                         <span className={`ticket-time${overdue ? ' overdue' : ''}`}>

@@ -57,14 +57,11 @@ Cashier cart math is duplicated client-side (for live totals before
 checkout) and server-side (for the authoritative total), and only the
 server-side copy has a test today.
 
-### Order type (dine-in / takeout / delivery)
-Every order today is the same undifferentiated thing — there's no way to
-mark an order as eat-in vs. to-go vs. a delivery pickup. A fast food counter
-usually needs this for at minimum: printing/labeling differently, and
-Kitchen prioritizing differently (a delivery driver waiting is a different
-urgency than a dine-in table). Would be a single new field on `Order`, shown
-as a filter/tag on Kitchen tickets and Reports rows — same shape as how
-`urgent` already works.
+### ~~Order type (dine-in / takeout / delivery)~~ — done
+`Order.orderType` (`'dine-in' | 'takeout' | 'delivery'`, default `'takeout'`)
+is now set from a toggle on Cashier, shown as a tag on Kitchen tickets
+(hidden for the default `takeout` to keep tickets uncluttered) and as a
+sortable column in Reports' order history.
 
 ### Customer-facing display / order number call
 No way for a waiting customer to know their order status without asking.
@@ -72,13 +69,12 @@ A second, read-only screen (or even a simple `/display` route showing
 Ready-column order numbers in large type) would close this — no new backend
 needed, just a new view reading the existing `/api/orders?status=ready`.
 
-### Inventory / stock tracking
-Menu items have no concept of "out of stock" or ingredient-level inventory
-today — an item is either on the menu or deleted. Even a simple boolean
-"86'd" flag (temporarily unavailable, distinct from deleted) that hides an
-item from Cashier but keeps its history/image/combos intact would cover most
-of what a real counter needs day-to-day, without building full inventory
-management.
+### ~~Inventory / stock tracking~~ — partially done
+`MenuItem.available` (boolean, default `true`) is now a simple "86'd" flag:
+unavailable items are hidden from Cashier's grid, rejected server-side if
+ordered anyway, and stay visible (tagged) in Menu admin with a one-click
+toggle — no history/image/combo data lost. Full ingredient-level inventory
+management is still not built, and wasn't the goal here.
 
 ### Tips
 No tip field anywhere — `Order` has `subtotal`/`discount`/`total` but no
