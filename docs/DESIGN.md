@@ -239,11 +239,17 @@ stays about architecture and data shapes.
   the column at 0 rather than blocking the page) and kind. Each row shows a
   checkbox (click doesn't open the row), a 32px thumbnail when it has an
   `image`, a pin mark before the name when `pinned`, and an "in N combos"
-  badge when other combos reference it. Checking any row opens a bulk
-  toolbar above the table — Mark available/86'd, Pin/Unpin, Set category…,
-  Add tag…, Delete — that calls `PUT /api/menu/bulk` (or, for delete, one
-  `DELETE` per item) and reports how many items it affected via a toast.
-  The detail sidebar has a "Cashier grid" section with the pin checkbox and
+  badge under the name (its own line, never crammed against the name) when
+  other combos reference it. Checking any row shows a quiet status row —
+  "Select all N filtered" / "Deselect all", the selected count, "Clear",
+  and one `ActionMenu` button on the right ("Actions ▾") — instead of a row
+  of loose buttons; its items are Mark available, Mark 86'd, Pin, Unpin,
+  Set category…, Add tag… and Delete… (tinted caution/danger to match the
+  same single-item actions), calling `PUT /api/menu/bulk` (or, for delete,
+  one `DELETE` per item after a `ConfirmModal` listing every selected item)
+  and reporting how many items it affected via a toast. "Set category…"
+  and "Add tag…" open a small inline form under the status row rather than
+  growing the bar itself. The detail sidebar has a "Cashier grid" section with the pin checkbox and
   a `TagInput`; edits there are held as a draft and written by a Save button
   (with Discard) that appears only once something changed, so no stray
   click reaches the catalog. Clicking a row shows its details in a sticky
@@ -294,8 +300,12 @@ first.
   callout export for the irreversible sentence, and an `onConfirm` that
   may be async: the dialog shows a spinner, closes itself on success and
   stays open with the error on a throw. The safe button is focused first so
-  Enter never confirms by accident. Used for deleting a menu item and
-  discarding a held order.
+  Enter never confirms by accident. When `message` includes a `.confirm-list`
+  that's taller than the dialog (e.g. a bulk delete listing 30+ items), only
+  that list scrolls internally — the title, warning and buttons stay fixed
+  in view rather than the whole dialog scrolling and pushing the confirm
+  button off-screen. Used for deleting a menu item (single or, from the
+  bulk toolbar, several at once) and discarding a held order.
 - **`ToastProvider` / `useToast()`** (`components/Toast.tsx`) — outcome
   messages. `toast('Saved')` or `toast('Failed', { kind: 'error' })`, with
   an optional `action: { label: 'Undo', onClick }`. One toast at a time,
@@ -342,6 +352,19 @@ first.
     `max-width: 320px`) rather than locking to the toggle's width, so a
     longer label (e.g. "Custom…") isn't clipped when the toggle itself is
     narrow.
+- **`ActionMenu`** (`components/ActionMenu.tsx`) — a single labelled button
+  ("Actions ▾") that opens the same dropdown-list chrome as `Dropdown`, but
+  each item is a command that fires and closes the menu rather than a value
+  the menu holds. Takes `{ label, items: { key, label, onSelect, tone?,
+  startGroup?, disabled? }[], disabled? }`; `tone` colours a row like the
+  app's semantic ghost buttons (`danger`/`caution`/`success`), `startGroup`
+  draws a rule above the row to separate command groups. Use this instead
+  of a row of loose buttons once there are more actions than a toolbar can
+  hold calmly — a bulk-selection toolbar being the case it exists for.
+  `ActionMenuInlineForm` (same file) is the small labelled-field-plus-Apply
+  row an `ActionMenu` item that needs a value (a category, a tag) opens
+  underneath the bar, so the bar itself never grows a permanent input.
+  Used by Menu's bulk-selection toolbar.
 - **`Combobox`** (`components/Combobox.tsx`) — a free-text input with
   type-ahead suggestions from a fixed option list, for fields that should
   accept a new value alongside existing ones (e.g. adding a brand-new menu
@@ -365,7 +388,11 @@ first.
   in their slot, values written on the chart wherever there's room (every
   bar up to 16 points, thinned beyond that, the peak always). A two-button
   style toggle sits in the corner and is remembered per chart in
-  localStorage. Used by Reports for
+  localStorage. Hover shows a custom tooltip, never the browser's `title`
+  attribute (its native hover delay reads as laggy); the tooltip element is
+  always mounted and its position/content update in place, so a CSS
+  transition glides it between adjacent bars/points instead of replaying
+  an enter animation on every hover change. Used by Reports for
   orders by hour, revenue by day and revenue by day of week.
 - **`downloadCsv()`** (`csv.ts`) — builds a CSV from rows (quoting as
   needed, UTF-8 BOM so Excel keeps × and —) and triggers a download. All

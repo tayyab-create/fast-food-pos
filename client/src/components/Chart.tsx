@@ -134,11 +134,16 @@ export function Chart({ points, name, emptyMessage, format = (v) => String(v), a
           </>
         )}
 
-        {hovered && hoverPos && (
-          <span className="chart-tooltip" role="tooltip" style={{ left: `${hoverPos.left}%`, bottom: `${hoverPos.bottom}%` }}>
-            {hovered.title}
-          </span>
-        )}
+        {/* Always mounted (never conditionally rendered) so moving between
+            adjacent points glides the position via CSS transition instead of
+            replaying an enter animation on every hover change. */}
+        <span
+          className={`chart-tooltip${hovered ? ' visible' : ''}`}
+          role="tooltip"
+          style={hoverPos ? { left: `${hoverPos.left}%`, bottom: `${hoverPos.bottom}%` } : undefined}
+        >
+          {hovered?.title}
+        </span>
       </div>
 
       <div className="chart-labels" aria-hidden="true">

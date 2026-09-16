@@ -13,6 +13,7 @@ import {
 import { getLabels } from '../api/labels';
 import { getRecentSales } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
+import { ActionMenu, ActionMenuInlineForm } from '../components/ActionMenu';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
 import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
@@ -505,50 +506,59 @@ export function Menu() {
         {listError && <p className="field-error" role="alert">{listError}</p>}
 
         {filteredItems.length > 0 && (
-          <button
-            type="button"
-            className="link-btn select-all-link"
-            onClick={() => setSelectedIds(filteredItems.every((i) => selectedIds.has(i._id)) ? new Set() : new Set(filteredItems.map((i) => i._id)))}
-          >
-            {filteredItems.every((i) => selectedIds.has(i._id)) ? 'Deselect all' : `Select all ${filteredItems.length} filtered`}
-          </button>
+          <div className="bulk-status-row">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setSelectedIds(filteredItems.every((i) => selectedIds.has(i._id)) ? new Set() : new Set(filteredItems.map((i) => i._id)))}
+            >
+              {filteredItems.every((i) => selectedIds.has(i._id)) ? 'Deselect all' : `Select all ${filteredItems.length} filtered`}
+            </button>
+
+            {selectedIds.size > 0 && (
+              <>
+                <span className="bulk-count">{selectedIds.size} selected</span>
+                <button type="button" className="link-btn" disabled={bulkBusy} onClick={clearSelection}>Clear</button>
+                <ActionMenu
+                  label="Actions"
+                  disabled={bulkBusy}
+                  items={[
+                    { key: 'available', label: 'Mark available', onSelect: () => applyBulk({ available: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked available`) },
+                    { key: '86', label: "Mark 86'd", tone: 'caution', onSelect: () => applyBulk({ available: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked 86'd`) },
+                    { key: 'pin', label: 'Pin to top', startGroup: true, onSelect: () => applyBulk({ pinned: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} pinned`) },
+                    { key: 'unpin', label: 'Unpin', onSelect: () => applyBulk({ pinned: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} unpinned`) },
+                    { key: 'category', label: 'Set category…', startGroup: true, onSelect: () => setBulkAction('category') },
+                    { key: 'tag', label: 'Add tag…', onSelect: () => setBulkAction('tag') },
+                    { key: 'delete', label: 'Delete…', tone: 'danger', startGroup: true, onSelect: () => setBulkDeleteTarget(items.filter((i) => selectedIds.has(i._id))) },
+                  ]}
+                />
+              </>
+            )}
+          </div>
         )}
 
-        {selectedIds.size > 0 && (
-          <div className="bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-            <span className="bulk-count">{selectedIds.size} selected</span>
-            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ available: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked available`)}>Mark available</button>
-            <button type="button" className="ghost caution" disabled={bulkBusy} onClick={() => applyBulk({ available: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked 86'd`)}>Mark 86&apos;d</button>
-            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ pinned: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} pinned`)}>Pin</button>
-            <button type="button" className="ghost" disabled={bulkBusy} onClick={() => applyBulk({ pinned: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} unpinned`)}>Unpin</button>
-
-            {bulkAction === 'category' ? (
-              <span className="bulk-inline-field">
-                <Combobox value={bulkValue} options={distinctCategories} onChange={setBulkValue} placeholder="Category" />
-                <button type="button" className="primary" disabled={bulkBusy || !bulkValue.trim()} onClick={() => applyBulk({ category: bulkValue.trim() }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} moved to ${bulkValue.trim()}`)}>
-                  {bulkBusy && <span className="spinner" aria-hidden="true" />}Apply
-                </button>
-                <button type="button" className="ghost" disabled={bulkBusy} onClick={() => { setBulkAction(null); setBulkValue(''); }}>Cancel</button>
-              </span>
-            ) : (
-              <button type="button" className="ghost" disabled={bulkBusy} onClick={() => setBulkAction('category')}>Set category…</button>
-            )}
-
-            {bulkAction === 'tag' ? (
-              <span className="bulk-inline-field">
-                <input placeholder="Tag" maxLength={MAX_TAG_LENGTH} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} />
-                <button type="button" className="primary" disabled={bulkBusy || !bulkValue.trim()} onClick={() => applyBulk({ addTag: bulkValue.trim() }, `Tag added to ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}`)}>
-                  {bulkBusy && <span className="spinner" aria-hidden="true" />}Add
-                </button>
-                <button type="button" className="ghost" disabled={bulkBusy} onClick={() => { setBulkAction(null); setBulkValue(''); }}>Cancel</button>
-              </span>
-            ) : (
-              <button type="button" className="ghost" disabled={bulkBusy} onClick={() => setBulkAction('tag')}>Add tag…</button>
-            )}
-
-            <button type="button" className="ghost danger" disabled={bulkBusy} style={{ marginLeft: 'auto' }} onClick={() => setBulkDeleteTarget(items.filter((i) => selectedIds.has(i._id)))}>Delete</button>
-            <button type="button" className="ghost" disabled={bulkBusy} onClick={clearSelection}>Clear</button>
-          </div>
+        {bulkAction === 'category' && (
+          <ActionMenuInlineForm
+            label="Move to category"
+            busy={bulkBusy}
+            submitDisabled={!bulkValue.trim()}
+            onCancel={() => { setBulkAction(null); setBulkValue(''); }}
+            onSubmit={() => applyBulk({ category: bulkValue.trim() }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} moved to ${bulkValue.trim()}`)}
+          >
+            <Combobox value={bulkValue} options={distinctCategories} onChange={setBulkValue} placeholder="Category" />
+          </ActionMenuInlineForm>
+        )}
+        {bulkAction === 'tag' && (
+          <ActionMenuInlineForm
+            label="Add tag"
+            submitLabel="Add"
+            busy={bulkBusy}
+            submitDisabled={!bulkValue.trim()}
+            onCancel={() => { setBulkAction(null); setBulkValue(''); }}
+            onSubmit={() => applyBulk({ addTag: bulkValue.trim() }, `Tag added to ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}`)}
+          >
+            <input placeholder="Tag" maxLength={MAX_TAG_LENGTH} autoFocus value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} />
+          </ActionMenuInlineForm>
         )}
 
         <LedgerTable
@@ -575,17 +585,19 @@ export function Menu() {
               render: (i: MenuItem) => {
                 const comboCount = combosContaining(i).length;
                 return (
-                  <>
-                    {i.pinned && (
-                      <span className="row-pin" title="Pinned to the top of the Cashier grid">
-                        <PinIcon />
-                        <span className="visually-hidden">Pinned. </span>
-                      </span>
-                    )}
-                    {i.name}
-                    {i.available === false && <span className="muted-text"> (86'd)</span>}
+                  <span className="menu-item-cell">
+                    <span className="menu-item-cell-name">
+                      {i.pinned && (
+                        <span className="row-pin" title="Pinned to the top of the Cashier grid">
+                          <PinIcon />
+                          <span className="visually-hidden">Pinned. </span>
+                        </span>
+                      )}
+                      {i.name}
+                      {i.available === false && <span className="muted-text"> (86'd)</span>}
+                    </span>
                     {comboCount > 0 && <span className="combo-membership-badge">in {comboCount} combo{comboCount > 1 ? 's' : ''}</span>}
-                  </>
+                  </span>
                 );
               },
               sortValue: (i: MenuItem) => i.name.toLowerCase(),

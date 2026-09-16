@@ -1489,12 +1489,36 @@ button .spinner { margin-right: 8px; }
 .grid-draft-actions button { font-size: 12.5px; padding: 6px 14px; }
 
 /* Confirmation dialog */
-.confirm-modal { max-width: 400px; }
-.confirm-message { font-size: 13.5px; line-height: 1.5; color: var(--ink); margin-bottom: 18px; }
-.confirm-message p { margin: 0 0 10px; }
+.confirm-modal {
+  max-width: 400px;
+  /* Own layout (like .order-confirm-modal): the header and buttons stay put
+     while .confirm-list scrolls internally, so a long selection never pushes
+     the confirm button below the fold. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+}
+.confirm-message {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+.confirm-message p { margin: 0 0 10px; flex-shrink: 0; }
 .confirm-message p:last-child { margin-bottom: 0; }
-.confirm-message .section-header { margin: 14px 0 4px; }
-.confirm-list { margin: 0 0 14px; padding: 0; list-style: none; }
+.confirm-message .section-header { margin: 14px 0 4px; flex-shrink: 0; }
+.confirm-list {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
 .confirm-list li {
   display: flex;
   justify-content: space-between;
@@ -1507,6 +1531,7 @@ button .spinner { margin-right: 8px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
   background: var(--danger-tint);
   border-left: 3px solid var(--danger);
   color: var(--ink);
@@ -1515,6 +1540,7 @@ button .spinner { margin-right: 8px; }
   margin: 0;
 }
 .confirm-warning svg { color: var(--danger); flex-shrink: 0; }
+.confirm-modal .checkout-row { flex-shrink: 0; }
 
 /* Toasts — one at a time, bottom-centre */
 .toast-region {
@@ -1705,6 +1731,8 @@ button:not(:disabled):active { transform: translateY(1px); }
 /* Custom chart tooltip — instant, unlike the browser's delayed title tooltip */
 .chart-tooltip {
   position: absolute;
+  left: 0;
+  bottom: 0;
   transform: translate(-50%, -100%) translateY(-10px);
   background: var(--ink);
   color: var(--paper);
@@ -1715,8 +1743,13 @@ button:not(:disabled):active { transform: translateY(1px); }
   border-radius: var(--radius);
   pointer-events: none;
   z-index: 5;
-  animation: chart-tooltip-in 100ms ease-out;
+  opacity: 0;
+  /* Always mounted — this transition glides left/bottom smoothly between
+     adjacent points on hover, instead of an enter animation replaying on
+     every point change (which read as laggy). */
+  transition: left 90ms ease-out, bottom 90ms ease-out, opacity 90ms ease-out;
 }
+.chart-tooltip.visible { opacity: 1; }
 .chart-tooltip::after {
   content: '';
   position: absolute;
@@ -1726,41 +1759,71 @@ button:not(:disabled):active { transform: translateY(1px); }
   border: 4px solid transparent;
   border-top-color: var(--ink);
 }
-@keyframes chart-tooltip-in { from { opacity: 0; transform: translate(-50%, -100%) translateY(-6px); } to { opacity: 1; transform: translate(-50%, -100%) translateY(-10px); } }
-@media (prefers-reduced-motion: reduce) { .chart-tooltip { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .chart-tooltip { transition: opacity 90ms ease-out; } }
 .chart-bars li { cursor: default; }
 
-/* Menu: bulk actions toolbar */
-.select-all-link { margin: -4px 0 10px; }
-.select-all-link:hover { color: var(--forest-dark); }
-.bulk-toolbar {
+/* Menu: bulk-selection status row — calm, text-first, one Actions menu
+   instead of a row of loose buttons (matches .reports-filter-bar's weight,
+   not a loud tinted callout). */
+.bulk-status-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  background: var(--forest-tint);
-  border: 1px solid var(--forest);
-  border-radius: var(--radius);
+  gap: 14px;
+  min-height: 30px;
+  margin: -2px 0 10px;
 }
-.bulk-toolbar button { font-size: 12.5px; padding: 6px 12px; }
+.bulk-status-row .link-btn { margin: 0; padding: 4px 0; }
 .bulk-count {
   font-family: var(--font-num);
   font-size: 12px;
   font-weight: 600;
-  color: var(--forest-dark);
-  margin-right: 4px;
+  color: var(--ink);
   white-space: nowrap;
 }
-.bulk-inline-field { display: flex; align-items: center; gap: 6px; }
-.bulk-inline-field input, .bulk-inline-field .combobox { width: 150px; }
-.bulk-inline-field input { padding: 6px 10px; font-size: 12.5px; }
+.bulk-status-row .action-menu { margin-left: auto; }
 
-/* Menu: combo-membership badge on a row that's used inside other combos */
+/* ActionMenu: one "Actions ▾" button opening the app's standard dropdown
+   list, each row a command that fires and closes rather than a held value. */
+.action-menu .dropdown-toggle.primary {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.action-menu .dropdown-toggle.primary .dropdown-caret { color: rgba(255, 255, 255, 0.8); }
+.action-menu-group-start { border-top: 1px solid var(--line-strong) !important; margin-top: 4px; padding-top: 4px; }
+.dropdown-list li > button.danger { color: var(--danger); }
+.dropdown-list li > button.danger:hover, .dropdown-list li > button.danger:focus-visible { background: var(--danger-tint); }
+.dropdown-list li > button.caution { color: var(--ochre); }
+.dropdown-list li > button.caution:hover, .dropdown-list li > button.caution:focus-visible { background: var(--ochre-tint); }
+.dropdown-list li > button.success { color: var(--forest-dark); }
+
+/* Inline form for a menu item that needs a value (category, tag) — rendered
+   as its own quiet row under the status row, never crowded into the bar. */
+.bulk-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: -2px 0 14px;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.bulk-inline-form-label { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; }
+.bulk-inline-form input, .bulk-inline-form .combobox { width: 180px; }
+.bulk-inline-form input { padding: 6px 10px; font-size: 12.5px; }
+.bulk-inline-form button { font-size: 12.5px; padding: 6px 12px; }
+
+/* Menu: item-cell layout — the name and an "in N combos" badge each get
+   their own line box, so the badge always has clean separation instead of
+   wrapping flush against the name. */
+.menu-item-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.menu-item-cell-name { line-height: 1.3; }
 .combo-membership-badge {
   display: inline-block;
-  margin-left: 8px;
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--paper);
