@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDismissable } from '../hooks/useDismissable';
 
 function DropdownCaret({ open }: { open: boolean }) {
   return (
@@ -10,6 +11,7 @@ function DropdownCaret({ open }: { open: boolean }) {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.6"
+      aria-hidden="true"
     >
       <path d="M2 3.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -31,6 +33,8 @@ interface DropdownProps<T> {
   className?: string;
 }
 
+/** Single-select listbox replacing native <select>. Options are real buttons,
+ * so Tab/Enter/Space work without any extra key handling. */
 export function Dropdown<T extends string | number>({
   value,
   options,
@@ -41,22 +45,7 @@ export function Dropdown<T extends string | number>({
 }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  useDismissable(ref, open, () => setOpen(false));
 
   const label = displayLabel ?? options.find((o) => o.value === value)?.label ?? String(value);
 
@@ -70,6 +59,8 @@ export function Dropdown<T extends string | number>({
         type="button"
         className="dropdown-toggle"
         disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         onClick={() => !disabled && setOpen((v) => !v)}
       >
         <span>{label}</span>
@@ -78,17 +69,19 @@ export function Dropdown<T extends string | number>({
       {open && (
         <ul className="dropdown-list" role="listbox">
           {options.map((opt) => (
-            <li
-              key={String(opt.value)}
-              role="option"
-              aria-selected={opt.value === value}
-              className={opt.value === value ? 'selected' : ''}
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-            >
-              {opt.label}
+            <li key={String(opt.value)}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={opt.value === value}
+                className={opt.value === value ? 'selected' : undefined}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+              >
+                {opt.label}
+              </button>
             </li>
           ))}
         </ul>
@@ -128,30 +121,13 @@ interface MultiSelectDropdownProps {
   className?: string;
 }
 
-/**
- * Same listbox as Dropdown, but checkbox-style options that toggle in place
+/** Same listbox as Dropdown, but checkbox-style options that toggle in place
  * without closing the list — for filters where more than one value can
- * apply at once (e.g. "show these categories").
- */
+ * apply at once (e.g. "show these categories"). */
 export function MultiSelectDropdown({ values, options, onChange, placeholder = 'All', className }: MultiSelectDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  useDismissable(ref, open, () => setOpen(false));
 
   function toggle(opt: string) {
     onChange(values.includes(opt) ? values.filter((v) => v !== opt) : [...values, opt]);
@@ -161,18 +137,29 @@ export function MultiSelectDropdown({ values, options, onChange, placeholder = '
 
   return (
     <div className={`dropdown${className ? ` ${className}` : ''}`} ref={ref}>
-      <button type="button" className="dropdown-toggle" onClick={() => setOpen((v) => !v)}>
+      <button
+        type="button"
+        className="dropdown-toggle"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
         <span>{label}</span>
         <DropdownCaret open={open} />
       </button>
       {open && (
-        <ul className="dropdown-list" role="listbox">
-          {options.map((opt) => (
-            <li key={opt} role="option" aria-selected={values.includes(opt)} onClick={() => toggle(opt)}>
-              <span className={`dropdown-check${values.includes(opt) ? ' checked' : ''}`} />
-              {opt}
-            </li>
-          ))}
+        <ul className="dropdown-list" role="listbox" aria-multiselectable="true">
+          {options.map((opt) => {
+            const checked = values.includes(opt);
+            return (
+              <li key={opt}>
+                <button type="button" role="option" aria-selected={checked} onClick={() => toggle(opt)}>
+                  <span className={`dropdown-check${checked ? ' checked' : ''}`} aria-hidden="true" />
+                  {opt}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

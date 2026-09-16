@@ -3,8 +3,11 @@ export interface Variant {
   price: number;
 }
 
+/** A combo ingredient — references the catalog item by id (so renames can't
+ * orphan it); `variant` is the size name when that item has variants. */
 export interface ComboEntry {
-  name: string;
+  itemId: string;
+  variant?: string;
   qty: number;
 }
 
@@ -25,6 +28,7 @@ export interface OrderItem {
   price: number;
   qty: number;
   note?: string;
+  /** Display snapshot of a combo's contents at order time, e.g. "2× Fries (Large)". */
   comboItems?: string[];
 }
 
@@ -42,11 +46,13 @@ export type OrderType = 'dine-in' | 'takeout' | 'delivery';
 export interface StatusChange {
   status: OrderStatus;
   at: string;
+  /** Present on the 'voided' entry. */
+  reason?: string;
 }
 
 export interface Order {
   _id: string;
-  orderNumber?: number;
+  orderNumber: number;
   items: OrderItem[];
   subtotal: number;
   discount?: Discount;
@@ -57,6 +63,7 @@ export interface Order {
   urgent?: boolean;
   note?: string;
   status: OrderStatus;
+  voidReason?: string;
   statusHistory?: StatusChange[];
   createdAt: string;
 }

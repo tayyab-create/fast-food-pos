@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Dropdown } from './Dropdown';
 
 export interface LedgerColumn<T> {
@@ -21,6 +21,10 @@ interface LedgerTableProps<T> {
   pageSize?: number;
   /** Lets the user pick the page size from this list (plus a "Custom" option). Requires pageSize. */
   pageSizeOptions?: number[];
+}
+
+function isActivationKey(e: KeyboardEvent) {
+  return e.key === 'Enter' || e.key === ' ';
 }
 
 export function LedgerTable<T>({
@@ -68,17 +72,29 @@ export function LedgerTable<T>({
     <table className="ledger">
       <thead>
         <tr>
-          {columns.map((col) => (
-            <th
-              key={col.header}
-              className={[col.numeric ? 'num' : '', col.sortValue ? 'sortable' : ''].filter(Boolean).join(' ') || undefined}
-              style={col.width ? { width: col.width } : undefined}
-              onClick={() => toggleSort(col)}
-            >
-              {col.header}
-              {sort?.header === col.header && <span className="sort-arrow">{sort.dir === 1 ? ' ▲' : ' ▼'}</span>}
-            </th>
-          ))}
+          {columns.map((col) => {
+            const sortable = !!col.sortValue;
+            const active = sort?.header === col.header;
+            return (
+              <th
+                key={col.header}
+                className={[col.numeric ? 'num' : '', sortable ? 'sortable' : ''].filter(Boolean).join(' ') || undefined}
+                style={col.width ? { width: col.width } : undefined}
+                tabIndex={sortable ? 0 : undefined}
+                aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}
+                onClick={() => toggleSort(col)}
+                onKeyDown={(e) => {
+                  if (sortable && isActivationKey(e)) {
+                    e.preventDefault();
+                    toggleSort(col);
+                  }
+                }}
+              >
+                {col.header}
+                {active && <span className="sort-arrow">{sort.dir === 1 ? ' ▲' : ' ▼'}</span>}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -90,9 +106,15 @@ export function LedgerTable<T>({
           pageRows.map((row) => (
             <tr
               key={rowKey(row)}
+              className={[isRowSelected?.(row) ? 'selected' : '', onRowClick ? 'clickable' : ''].filter(Boolean).join(' ') || undefined}
+              tabIndex={onRowClick ? 0 : undefined}
               onClick={() => onRowClick?.(row)}
-              className={isRowSelected?.(row) ? 'selected' : undefined}
-              style={onRowClick ? { cursor: 'pointer' } : undefined}
+              onKeyDown={(e) => {
+                if (onRowClick && isActivationKey(e) && e.target === e.currentTarget) {
+                  e.preventDefault();
+                  onRowClick(row);
+                }
+              }}
             >
               {columns.map((col) => (
                 <td key={col.header} className={col.numeric ? 'num' : undefined}>

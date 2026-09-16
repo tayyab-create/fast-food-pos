@@ -1,32 +1,33 @@
 import type { ComboEntry, MenuItem } from './types';
 
-/** "2× Cheeseburger" if qty > 1, else just the name — matches the backend's
- * Order.items[].comboItems snapshot format (ordersController.js). */
-export function formatComboEntry(entry: ComboEntry): string {
-  return entry.qty > 1 ? `${entry.qty}× ${entry.name}` : entry.name;
+function findItem(entry: ComboEntry, menu: MenuItem[]): MenuItem | undefined {
+  return menu.find((i) => i._id === entry.itemId);
 }
 
-/** Resolves a combo entry's current catalog price (its name follows the same
- * "Base (Variant)" convention as cart/order lines) — always today's price,
- * not a stale snapshot, since combo entries don't store their own price.
- * Checks an exact plain-item match first, same as the backend's resolveItem,
- * so an item whose own name contains parentheses (e.g. "Pepsi (250ml)") isn't
- * misread as "Base (Variant)". */
-export function priceForComboEntry(entry: ComboEntry, menu: MenuItem[]): number {
-  const exact = menu.find((i) => i.name === entry.name && !i.variants?.length);
-  if (exact) return exact.price;
-
-  const match = entry.name.match(/^(.+) \(([^)]+)\)$/);
-  if (match) {
-    const [, baseName, variantName] = match;
-    const base = menu.find((i) => i.name === baseName);
-    return base?.variants?.find((v) => v.name === variantName)?.price ?? 0;
-  }
-  return 0;
+/** "2× Fries (Large)" — or null if the referenced item is no longer in the
+ * catalog. Must produce the same strings as describeComboContents() in
+ * controllers/ordersController.js, which writes the order-time snapshot. */
+export function comboEntryLabel(entry: ComboEntry, menu: MenuItem[]): string | null {
+  const item = findItem(entry, menu);
+  if (!item) return null;
+  const name = entry.variant ? `${item.name} (${entry.variant})` : item.name;
+  return entry.qty > 1 ? `${entry.qty}× ${name}` : name;
 }
 
-/** Sum of qty × resolved price across a combo's entries — what the items
- * would cost bought separately at today's catalog prices. */
+/** Today's catalog price for one unit of the entry (0 if the item or size is gone). */
+export function comboEntryUnitPrice(entry: ComboEntry, menu: MenuItem[]): number {
+  const item = findItem(entry, menu);
+  if (!item) return 0;
+  if (entry.variant) return item.variants?.find((v) => v.name === entry.variant)?.price ?? 0;
+  return item.price;
+}
+
+/** What the combo's contents would cost bought separately at today's prices. */
 export function comboItemsTotal(entries: ComboEntry[], menu: MenuItem[]): number {
-  return entries.reduce((sum, e) => sum + priceForComboEntry(e, menu) * e.qty, 0);
+  return entries.reduce((sum, e) => sum + comboEntryUnitPrice(e, menu) * e.qty, 0);
+}
+
+/** "2× Cheeseburger + Fries (Large)" for tiles, tickets, and detail views. */
+export function comboContentsSummary(entries: ComboEntry[], menu: MenuItem[]): string {
+  return entries.map((e) => comboEntryLabel(e, menu)).filter(Boolean).join(' + ');
 }

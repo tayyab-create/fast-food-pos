@@ -140,6 +140,10 @@ button.ghost:hover { background: var(--paper); border-color: var(--ink); color: 
 button.icon { border: none; background: none; padding: 2px 8px; font-size: 1rem; color: var(--ink-soft); }
 button.icon:hover { background: none; color: var(--danger); }
 button.danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+/* Destructive primary — only for the final confirm of an irreversible action (void). */
+button.primary.danger { background: var(--danger); border-color: var(--danger); color: white; }
+button.primary.danger:hover { background: var(--danger); border-color: var(--danger); color: white; opacity: 0.9; }
+button.primary.danger:disabled { background: var(--line-strong); border-color: var(--line-strong); opacity: 1; }
 
 input:not([type="checkbox"]), select {
   font-family: var(--font-ui);
@@ -233,6 +237,7 @@ table.ledger th {
 table.ledger th.num { text-align: right; white-space: nowrap; }
 table.ledger th.sortable { cursor: pointer; user-select: none; }
 table.ledger th.sortable:hover { color: var(--ink); }
+table.ledger th.sortable:focus-visible { outline: none; color: var(--ink); box-shadow: inset 0 -2px 0 var(--forest); }
 .sort-arrow { font-size: 9px; }
 
 .ledger-pagination {
@@ -273,7 +278,9 @@ table.ledger td {
   border-bottom: 1px solid var(--line);
 }
 table.ledger td.num { white-space: nowrap; }
-table.ledger tbody tr:hover { background: var(--paper); }
+table.ledger tbody tr.clickable { cursor: pointer; }
+table.ledger tbody tr.clickable:hover { background: var(--paper); }
+table.ledger tbody tr.clickable:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--forest); }
 table.ledger tbody tr.selected { background: var(--forest-tint); }
 
 /* Cashier — tap screen */
@@ -639,7 +646,65 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   max-height: calc(100vh - 40px);
 }
 .order-confirm-modal .confirm-check { margin-bottom: 14px; flex-shrink: 0; align-self: center; }
-.order-confirm-modal h2 { border: none; padding: 0; margin: 0 0 16px; flex-shrink: 0; }
+
+/* Shared dialog header: title, optional extra (status pill), × on the right */
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  flex-shrink: 0;
+}
+.modal-header h2 {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+}
+.order-confirm-modal.confirmed .modal-header h2 { text-align: center; }
+.modal-close {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  border-radius: var(--radius);
+}
+.modal-close:hover { background: var(--forest-tint); color: var(--ink); }
+.modal-close:disabled { color: var(--line-strong); cursor: not-allowed; background: none; }
+
+/* Void confirmation */
+.void-modal .hint { margin-bottom: 14px; }
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.void-reason {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  color: var(--ink);
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.void-reason:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px var(--forest-tint); }
+.void-reason.invalid, .void-reason.invalid:focus { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-tint); }
+.void-modal .checkout-row { margin-top: 14px; }
 .order-confirm-modal .section-header { text-align: left; margin-bottom: 8px; flex-shrink: 0; min-width: 0; }
 .order-confirm-modal .list-header { flex-shrink: 0; margin-bottom: 8px; }
 .order-confirm-modal .list-header .section-header { margin-bottom: 0; }
@@ -986,19 +1051,25 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
-.dropdown-list li {
+.dropdown-list li + li { border-top: 1px solid var(--line); }
+/* Options are real buttons so Tab/Enter/Space work; strip the button chrome. */
+.dropdown-list li > button {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 7px 9px;
+  border: none;
   border-radius: var(--radius);
+  background: none;
+  color: var(--ink);
+  text-align: left;
   white-space: nowrap;
-  cursor: pointer;
   font-size: 13.5px;
 }
-.dropdown-list li + li { border-top: 1px solid var(--line); }
-.dropdown-list li:hover { background: var(--forest-tint); }
-.dropdown-list li.selected { background: var(--forest-tint); color: var(--forest-dark); font-weight: 500; }
+.dropdown-list li > button:hover,
+.dropdown-list li > button:focus-visible { background: var(--forest-tint); box-shadow: none; }
+.dropdown-list li > button.selected { background: var(--forest-tint); color: var(--forest-dark); font-weight: 500; }
 
 .combobox { position: relative; width: 100%; }
 .combobox input { width: 100%; }
@@ -1082,8 +1153,8 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
 
 .variant-editor { margin: 8px 0 4px; display: flex; flex-direction: column; gap: 8px; }
 .variant-editor-row { display: flex; gap: 8px; align-items: center; }
-.variant-editor-row input:first-child { flex: 2; }
-.variant-editor-row input:nth-child(2) { flex: 1; }
+.variant-editor-row > input { flex: 1; min-width: 0; }
+.variant-editor-row .discount-unit-field { width: 112px; flex: 0 0 112px; }
 .variant-editor-row-wrap .field-error { margin-top: 2px; }
 
 .hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
@@ -1100,11 +1171,10 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
-  cursor: pointer;
 }
 .combo-picker-row:last-child { border-bottom: none; }
 .combo-picker-row:hover { background: var(--paper); }
-.combo-picker-name { flex: 1; }
+.combo-picker-name { flex: 1; cursor: pointer; }
 .combo-picker-row .dropdown { flex: 0 0 auto; min-width: 130px; max-width: 170px; }
 .combo-picker-row .dropdown-toggle span:first-child {
   display: block;
@@ -1156,4 +1226,77 @@ button.ghost.danger:hover { background: var(--danger-tint); border-color: var(--
   border: 1px solid var(--line);
   margin-bottom: 8px;
 }
-.image-field-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Keeps an element in the tab order and readable by screen readers, but off-screen. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Photo picker: a dashed drop zone (the same dashed hairline the receipt
+   tally uses) that becomes the preview once a photo is chosen. Driven by
+   the visually-hidden native input that precedes it. */
+.image-field .field-label { margin-bottom: 6px; }
+.photo-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 200px;
+  aspect-ratio: 4 / 3;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.12s, background 0.12s;
+}
+.photo-drop svg { color: var(--muted); }
+.photo-drop-hint { font-size: 11px; color: var(--muted); padding: 0 12px; line-height: 1.35; }
+.photo-drop:hover,
+.photo-drop.drag-over { border-color: var(--forest); background: var(--forest-tint); color: var(--ink); }
+.photo-drop:hover svg,
+.photo-drop.drag-over svg { color: var(--forest); }
+.visually-hidden:focus-visible + .photo-drop { border-color: var(--forest); box-shadow: 0 0 0 3px var(--forest-tint); }
+.photo-drop.has-photo { border-style: solid; border-color: var(--line); background: var(--surface); }
+.photo-drop.has-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-drop-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px 0;
+  background: rgba(32, 80, 58, 0.85);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.photo-drop.has-photo:hover .photo-drop-overlay,
+.visually-hidden:focus-visible + .photo-drop.has-photo .photo-drop-overlay { opacity: 1; }
+.link-btn {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover { background: none; color: var(--danger); }
+
+.field-label-row { display: flex; justify-content: space-between; align-items: baseline; }
+.char-count { font-family: var(--font-num); font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.char-count.at-limit { color: var(--danger); }

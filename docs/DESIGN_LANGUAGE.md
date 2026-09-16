@@ -61,21 +61,25 @@ labels or buttons — that's what keeps it feeling institutional rather than
 ## Layout
 
 - Content sits on a soft `--paper` background — like a physical document on
-  a desk, not a full-bleed app shell. Main content column max-width ~920px
-  (the Cashier's two-column tap/ledger layout is the one screen allowed to
-  run wider, since it's a working surface, not a form).
+  a desk, not a full-bleed app shell. Main content column max-width 1320px
+  (`main.wide`) on every screen — all four are working surfaces with a
+  two-column or board layout, so none of them wants a narrow form column.
 - A double-weight rule (2px, `--ink`) under the header separates identity
   from content — the one moment of visual weight in the whole page.
 - Content organized into sections, each with a small-caps label followed by
   a hairline rule that extends to the section's right edge (label + flex
   line, not a full-width `<hr>`).
 - Fields sit in a plain grid, label-above-input, generous but not loose gaps
-  (16–20px). No card wrappers, no shadows, no rounded panels — sections are
-  separated by hairlines only.
+  (16–20px). No card wrappers, no rounded panels — sections are separated by
+  hairlines only. Shadows are reserved for things that genuinely float over
+  the page (dropdown lists, the date-picker panel, modals) and for the
+  focus glow; in-flow content never gets elevation.
 - Tables (tickets, reports, menu admin) use 1px hairline grids with a very
   light header background, not zebra striping or heavy borders.
 - Radius is minimal (3px) everywhere — just enough to soften edges, not
-  enough to read as "app UI." No pill shapes except the one status badge.
+  enough to read as "app UI." Pill shapes are reserved for small inline tags
+  that label a state (the status pill, a ticket's Urgent/order-type tags, the
+  "options set" dot) — never for buttons, inputs, or containers.
 - Totals/summary blocks (the Cashier order ledger) read like a paper
   receipt: a `--paper`-tinted panel with dashed hairline rules (`--line`,
   `--line-strong`) separating Subtotal/Discount rows — dashes, not solid
@@ -98,7 +102,8 @@ labels or buttons — that's what keeps it feeling institutional rather than
   native radio inputs — the selected one gets a forest border + tint. Used
   for real business decisions, never for cosmetic choices.
 - **Buttons**: one primary (`--forest-dark` fill, white text), one
-  ghost/secondary (transparent, `--ink` border). No gradients, no shadows.
+  ghost/secondary (transparent, `--line-strong` border that darkens to
+  `--ink` on hover). No gradients, no shadows.
 - **Status pill**: small rounded tag, colored by state (ochre =
   pending/preparing, forest = ready, muted = completed) — for showing a single
   order's status outside its own status context (e.g. a lookup or history
@@ -114,8 +119,8 @@ labels or buttons — that's what keeps it feeling institutional rather than
 
 ## Voice
 
-Plain, direct, active-voice labels: "Add item," "Checkout" — never "Submit"
-alone or "Process request." Hints are short and instructional ("e.g. no
+Plain, direct, active-voice labels: "Add item," "Pay," "Confirm payment" —
+never "Submit" alone or "Process request." Hints are short and instructional ("e.g. no
 onions"), not marketing copy. Error messages state the fix, not just the
 failure.
 

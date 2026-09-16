@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
 const Counter = require('../models/Counter');
+const { isMoney, roundMoney } = require('../lib/money');
 
 const STATUSES = ['pending', 'preparing', 'ready', 'completed', 'voided'];
 
@@ -19,7 +20,9 @@ function resolveItem(rawItem, menu) {
   const exact = menu.find((m) => m.name === name && !m.variants?.length);
   if (exact) {
     if (exact.available === false) return { error: `"${name}" is currently unavailable` };
-    const comboItems = exact.isCombo ? exact.comboItems?.map(formatComboEntry) : undefined;
+    if (!exact.isCombo) return { item: buildItem(name, exact.price, qty, undefined, rawItem?.note) };
+    const { comboItems, error } = describeComboContents(exact, menu);
+    if (error) return { error };
     return { item: buildItem(name, exact.price, qty, comboItems, rawItem?.note) };
   }
 
@@ -38,10 +41,25 @@ function resolveItem(rawItem, menu) {
   return { error: `Unknown menu item "${name}"` };
 }
 
-// Formats a MenuItem combo entry { name, qty } into the display string an
-// order's item.comboItems snapshot stores (e.g. "2x Cheeseburger").
-function formatComboEntry(entry) {
-  return entry.qty > 1 ? `${entry.qty}× ${entry.name}` : entry.name;
+// Resolves a combo's { itemId, variant, qty } entries against the catalog into
+// the display strings an order's item.comboItems snapshot stores
+// (e.g. "2× Cheeseburger", "Pizza (Large)"). An entry whose referenced item
+// is unavailable blocks the whole combo — a sold-out ingredient can't be
+// sold inside a bundle either. Entries whose item no longer exists are
+// skipped; remove() already pulls deleted items out of combos, so that's a
+// belt-and-braces case, not an expected one.
+function describeComboContents(combo, menu) {
+  const comboItems = [];
+  for (const entry of combo.comboItems ?? []) {
+    const item = menu.find((m) => String(m._id) === String(entry.itemId));
+    if (!item) continue;
+    const label = entry.variant ? `${item.name} (${entry.variant})` : item.name;
+    if (item.available === false) {
+      return { error: `"${combo.name}" includes "${label}", which is currently unavailable` };
+    }
+    comboItems.push(entry.qty > 1 ? `${entry.qty}× ${label}` : label);
+  }
+  return { comboItems };
 }
 
 function buildItem(name, price, qty, comboItems, note) {
@@ -61,15 +79,18 @@ function applyDiscount(discount, subtotal) {
   if (!['percent', 'flat'].includes(discount.type) || !(discount.value > 0)) {
     return { error: 'Invalid discount' };
   }
+  if (!isMoney(discount.value)) {
+    return { error: 'Discount can have at most two decimal places' };
+  }
   if (discount.type === 'percent' && discount.value > 100) {
     return { error: 'Percent discount cannot exceed 100' };
   }
   if (discount.type === 'flat' && discount.value > subtotal) {
     return { error: 'Flat discount cannot exceed the subtotal' };
   }
-  const discountAmount = discount.type === 'percent' ? subtotal * (discount.value / 100) : discount.value;
+  const discountAmount = roundMoney(discount.type === 'percent' ? subtotal * (discount.value / 100) : discount.value);
   const reason = typeof discount.reason === 'string' ? discount.reason.slice(0, 100) : discount.reason;
-  return { discountAmount, total: Math.max(0, subtotal - discountAmount), reason };
+  return { discountAmount, total: Math.max(0, roundMoney(subtotal - discountAmount)), reason };
 }
 
 const PAYMENT_METHODS = ['cash', 'card'];
@@ -89,6 +110,9 @@ async function create(req, res) {
   if (amountTendered !== undefined && !(Number(amountTendered) >= 0)) {
     return res.status(400).json({ error: 'Invalid amount tendered' });
   }
+  if (amountTendered !== undefined && !isMoney(amountTendered)) {
+    return res.status(400).json({ error: 'Amount tendered can have at most two decimal places' });
+  }
 
   const menu = await MenuItem.find();
   const items = [];
@@ -98,7 +122,7 @@ async function create(req, res) {
     items.push(item);
   }
 
-  const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const subtotal = roundMoney(items.reduce((sum, i) => sum + i.price * i.qty, 0));
   const { error: discountError, total, reason } = applyDiscount(discount, subtotal);
   if (discountError) return res.status(400).json({ error: discountError });
   if (discount) discount.reason = reason;
@@ -113,7 +137,7 @@ async function create(req, res) {
   const orderNumber = counter.seq;
   const order = await Order.create({
     items, subtotal, discount, total, orderNumber, urgent, note, paymentMethod, orderType,
-    amountTendered: paymentMethod === 'cash' ? amountTendered : undefined,
+    amountTendered: paymentMethod === 'cash' && amountTendered !== undefined ? Number(amountTendered) : undefined,
     statusHistory: [{ status: 'pending' }],
   });
   res.status(201).json(order);
@@ -126,12 +150,21 @@ async function list(req, res) {
 }
 
 async function updateStatus(req, res) {
-  if (!STATUSES.includes(req.body.status)) {
+  const { status, reason } = req.body;
+  if (!STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
+  }
+  const voidReason = status === 'voided' ? String(reason ?? '').trim().slice(0, 200) : undefined;
+  if (status === 'voided' && !voidReason) {
+    return res.status(400).json({ error: 'A reason is required to void an order' });
   }
   const order = await Order.findByIdAndUpdate(
     req.params.id,
-    { status: req.body.status, $push: { statusHistory: { status: req.body.status } } },
+    {
+      status,
+      ...(voidReason && { voidReason }),
+      $push: { statusHistory: { status, ...(voidReason && { reason: voidReason }) } },
+    },
     { returnDocument: 'after' }
   );
   if (!order) return res.status(404).json({ error: 'Order not found' });

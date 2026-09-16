@@ -39,13 +39,22 @@ client/                 Vite + React + TypeScript SPA
       Combobox.tsx            Free-text input with type-ahead suggestions, never forces a match
       DatePicker.tsx          Custom calendar (replaces native <input type="date">) — same
                                reasoning as Dropdown; see "Reusable components" below
+      Modal.tsx               The one dialog shell (overlay, panel, title, × button, Escape)
+      PayModal.tsx            Tender step (Cash/Card, amount tendered, change due); owns its
+                               own submitting/error state so it can't double-fire
+      VoidOrderModal.tsx      Void confirmation with a required reason (Kitchen + order detail)
+      ComboPicker.tsx         Searchable checklist that builds a combo's contents by item id
       NavBar.tsx
+    hooks/
+      useDismissable.ts       Close-on-outside-click/Escape, shared by every popup component
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
       menu.ts, orders.ts, reports.ts   Typed functions per resource
     types.ts                  Shared TS interfaces (mirror backend shapes)
-    comboFormat.ts             formatComboEntry(): "2× Name" display formatting, shared by
-                               Cashier/Menu (must match ordersController.js's own copy)
+    comboFormat.ts             Resolves combo entries against the loaded catalog: display labels
+                               ("2× Fries (Large)"), unit prices, and the bought-separately sum.
+                               Labels must match describeComboContents() in ordersController.js,
+                               which writes the order-time snapshot.
     styles/
       ledger.css              Global ledger visual theme
 ```
@@ -58,10 +67,12 @@ client/                 Vite + React + TypeScript SPA
   _id, name: string, price: number, category: string,
   variants?: [{ name: string, price: number }],  // e.g. pizza sizes; price becomes per-variant
   isCombo?: boolean,
-  comboItems?: [{ name: string, qty: number }],    // e.g. [{name:"Cheeseburger",qty:2},{name:"Fries (Large)",qty:1}]
-                                                     // qty defaults to 1; name follows the same "Base (Variant)"
-                                                     // convention as Order.items — matched against the catalog live,
-                                                     // not a price snapshot (see resolveItem in ordersController.js)
+  comboItems?: [{ itemId: ObjectId, variant?: string, qty: number }],
+                         // references the contained item by id (never by name, so renames can't
+                         // orphan a combo); `variant` is the size name when that item has variants;
+                         // qty defaults to 1. Names and prices are resolved against the catalog at
+                         // read time. Deleting an item $pulls it out of every combo. A combo can't
+                         // contain another combo, and ordering one fails if any ingredient is 86'd.
   image?: string,                                   // "/uploads/<itemId>.jpg?v=<timestamp>", undefined if none
   available?: boolean,   // default true; false = "86'd" — hidden from Cashier, rejected server-side, kept in Menu admin
 }
@@ -79,6 +90,10 @@ client/                 Vite + React + TypeScript SPA
   subtotal: number,
   discount?: { type: 'percent' | 'flat', value: number, reason?: string },
   total: number,   // subtotal minus discount, clamped to >= 0
+                   // Every money field — here and on MenuItem — is dollars with at most two
+                   // decimals: inputs with a third decimal are rejected (400), and computed
+                   // amounts (subtotal, discount, total) are rounded to cents before saving.
+                   // See lib/money.js (server) and client/src/money.ts (matching client copy).
   paymentMethod: 'cash' | 'card',
   orderType?: 'dine-in' | 'takeout' | 'delivery',  // default 'takeout'
   amountTendered?: number,  // cash only — validated >= total server-side, for change-due / till reconciliation
@@ -87,10 +102,12 @@ client/                 Vite + React + TypeScript SPA
   status: 'pending' | 'preparing' | 'ready' | 'completed' | 'voided',
     // voided orders are excluded from the Kitchen board and daily report revenue,
     // but stay visible in Reports' order history — a record, not a delete
-  statusHistory: [{ status: string, at: Date }],
+  voidReason?: string,   // why it was voided — required by the API when voiding, shown in the detail view
+  statusHistory: [{ status: string, at: Date, reason?: string }],
     // one entry per status change, oldest first — seeded with 'pending' at creation,
     // appended (never rewritten) on every PATCH /api/orders/:id; shown as a timeline
-    // in OrderDetailModal's non-confirmed (Reports history) view
+    // in OrderDetailModal's non-confirmed (Reports history) view. `reason` is set
+    // on the 'voided' entry only.
   createdAt: Date,
 }
 ```
@@ -100,14 +117,14 @@ client/                 Vite + React + TypeScript SPA
 | Method | Path              | Body                                   | Response              |
 |--------|-------------------|-----------------------------------------|------------------------|
 | GET    | /api/menu         | —                                       | MenuItem[]             |
-| POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems? } | MenuItem (201) |
+| POST   | /api/menu         | { name, price, category, variants?, isCombo?, comboItems?, available? } | MenuItem (201) |
 | PUT    | /api/menu/:id     | { name?, price?, category?, variants?, isCombo?, comboItems?, available? } | MenuItem |
 | DELETE | /api/menu/:id     | —                                       | 204                    |
 | POST   | /api/menu/:id/image | multipart, field `image` (jpeg/png/webp, ≤5MB) | MenuItem |
 | DELETE | /api/menu/:id/image | —                                     | MenuItem               |
 | GET    | /api/orders       | ?status= (optional filter)              | Order[]                |
 | POST   | /api/orders       | { items: OrderItem[], paymentMethod, orderType?, amountTendered?, discount?, urgent?, note? } | Order (201) |
-| PATCH  | /api/orders/:id   | { status }                              | Order                  |
+| PATCH  | /api/orders/:id   | { status, reason? } — `reason` required (≤200 chars) when status is `voided` | Order |
 | GET    | /api/reports/daily| —                                       | { orderCount, revenue, topItems: [{name, qty}] } |
 
 ## Visual style
@@ -119,8 +136,10 @@ stays about architecture and data shapes.
 
 - **Cashier (`/`)**: a search bar, category tabs (including an "All" tab), and
   a grid of tappable item tiles — items with `variants` expand an inline size
-  picker on tap; `isCombo` items show their `comboItems` as a subtext line.
-  Tiles with an `image` show it above the name/price. The order ledger sheet
+  picker on tap; `isCombo` items show their contents as a subtext line and,
+  when the combo undercuts its contents' separate prices, that sum struck
+  through beside the combo price. Tiles with an `image` show it above the
+  name/price. The order ledger sheet
   on the right shows a Dine-in/Takeout/Delivery order-type toggle above the
   cart lines (qty, name, line total, remove, optional per-item note), a
   collapsed "⋯ More" panel (a dot badge shows when something inside is set)
@@ -131,7 +150,9 @@ stays about architecture and data shapes.
   amount-due display and Cash/Card tabs — Cash shows an amount-tendered field
   and live change-due readout (gated on tendering enough), Card is a single
   confirm — matching how Square/Toast separate payment from cart-building
-  rather than picking it inline. Menu items marked unavailable
+  rather than picking it inline. A rejected order (e.g. an item 86'd since it
+  was added) is shown inside the modal and the cart is kept. Held orders keep
+  every cart field including order type. Menu items marked unavailable
   (`available: false`) are hidden from the tile grid entirely.
 - **Kitchen (`/kitchen`)**: a search bar, Pending/Preparing/Ready column
   toggles, and a multi-select order-type filter, then a board of the visible
@@ -157,12 +178,14 @@ stays about architecture and data shapes.
   free-text-with-suggestions Combobox for category, unless "This is a combo"
   is checked, which locks category to "Combo"), an "Available for sale"
   checkbox, a repeatable size-row editor for variants, a searchable checklist
-  to build combos from existing items (a per-item size picker when the item
-  has variants, a qty stepper per selected item, and a running price sum —
-  the item's own price field auto-fills from that sum until the user types
-  their own, so it can be saved as-is or overridden), and a file input + live
-  preview + remove action for the product photo. Unavailable items stay in
-  the list (tagged "(86'd)") rather than being deleted.
+  to build combos from existing items (`ComboPicker`: a per-item size picker
+  when the item has variants, a qty field per selected item, and a running
+  price sum — the item's own price field auto-fills from that sum until the
+  user types their own, so it can be saved as-is or overridden), and a file
+  input + live preview + remove action for the product photo. Unavailable
+  items stay in the list (tagged "(86'd)") rather than being deleted;
+  deleting an item that's inside a combo warns, then removes it from those
+  combos server-side.
 
 ## Reusable components
 Shared building blocks that should be reused rather than re-implemented — if
@@ -199,7 +222,10 @@ first.
     without closing the list, for filters where more than one value can
     apply at once (`values: []` means "no filter, show all"). The toggle
     label shows the single selected value, `"N selected"`, or `placeholder`
-    when empty. Used by Menu's category filter.
+    when empty. Used by Menu's category filter, Kitchen's order-type filter,
+    and Reports' status and order-type filters.
+  - Options are rendered as real `<button>`s, so every list is usable from
+    the keyboard (Tab/Enter/Space) with no custom key handling.
   - The dropdown list sizes to its content (`width: max-content`, capped at
     `max-width: 320px`) rather than locking to the toggle's width, so a
     longer label (e.g. "Custom…") isn't clipped when the toggle itself is
@@ -218,11 +244,38 @@ first.
   formatted date opens a ledger-styled month-grid panel (prev/next month,
   today/selected-day highlighting, Clear/Today shortcuts). Takes/returns a
   plain `"YYYY-MM-DD"` string (or `""` for unset), so it's a drop-in
-  replacement for a native date input's value. Used by Reports' Order
-  History date-range filter.
+  replacement for a native date input's value. Also exports
+  `isoDateToLocalDate()` — use it (not `new Date(iso)`, which parses a bare
+  date as UTC) whenever a picked date is compared against timestamps. Used by
+  Reports' Order History date-range filter.
+- **`Modal`** (`components/Modal.tsx`) — the dialog shell every popup uses:
+  overlay, panel, `role="dialog"`, a title, a × close button, and closing on
+  overlay click or Escape (only the topmost modal reacts to Escape, so a
+  modal opened from inside another closes alone). `closeDisabled` blocks all
+  three while a request is in flight; `lead`/`headerExtra` slot content above
+  the title or beside it (the checkout tick, a status pill). Don't hand-roll
+  an overlay — wrap content in this.
+- **`VoidOrderModal`** (`components/VoidOrderModal.tsx`) — confirms a void
+  and captures a required reason, which the API stores as `voidReason` and on
+  the `voided` status-history entry. Used by Kitchen tickets and
+  `OrderDetailModal`.
+- **`PayModal`** (`components/PayModal.tsx`) — the tender step. Takes `total`,
+  an `onConfirm(method, amountTendered?)` that returns a promise, and
+  `onClose`. Owns its own submitting/error state: a rejected confirm shows
+  the message inline and keeps the modal open, and the confirm button is
+  disabled while a request is in flight so Enter + click can't place two
+  orders. Used by Cashier.
+- **`ComboPicker`** (`components/ComboPicker.tsx`) — builds a combo's
+  `comboItems` from a list of candidate items: a real checkbox per row, a qty
+  field and size picker once selected, and a bought-separately sum. Entries
+  reference items by `_id`. Used by Menu's item form.
+- **`useDismissable(ref, open, onClose)`** (`hooks/useDismissable.ts`) — the
+  one implementation of "close this popup on outside pointer-down or
+  Escape", shared by `Dropdown`, `MultiSelectDropdown`, `Combobox`, and
+  `DatePicker`. Reach for it before writing another document listener.
 
 ## Dev & build
-- Dev: `npm start` (Express API, :3000) + `cd client && npm run dev` (Vite,
-  :5173, proxies `/api/*` to :3000).
+- Dev: `npm run dev` (Express API via nodemon, :3000) + `cd client && npm run
+  dev` (Vite, :5173, proxies `/api/*` to :3000).
 - Prod: `cd client && npm run build` → `client/dist`; Express serves it
   statically with an SPA fallback to `index.html`.

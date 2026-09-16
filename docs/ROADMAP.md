@@ -59,9 +59,9 @@ server-side copy has a test today.
 
 ### ~~Order type (dine-in / takeout / delivery)~~ — done
 `Order.orderType` (`'dine-in' | 'takeout' | 'delivery'`, default `'takeout'`)
-is now set from a toggle on Cashier, shown as a tag on Kitchen tickets
-(hidden for the default `takeout` to keep tickets uncluttered) and as a
-sortable column in Reports' order history.
+is now set from a toggle on Cashier, shown as a tag on every Kitchen ticket,
+filterable on Kitchen and Reports, and a sortable column in Reports' order
+history.
 
 ### Customer-facing display / order number call
 No way for a waiting customer to know their order status without asking.
@@ -127,9 +127,9 @@ till in a taxed jurisdiction needs this; it's absent today, not disabled.
   for actual bookkeeping outside the app.
 
 ### Menu admin
-- **Bulk actions**: no way to disable/hide an item without deleting it
-  (e.g. temporarily out of stock) — every out-of-stock item currently has to
-  be deleted and re-created, losing its image and combo references.
+- **Bulk actions**: the per-item "Mark 86'd" toggle covers the single-item
+  case; there's still no way to 86 or restore several items at once (end of
+  a rush, start of a day).
 - **Category management**: categories are just strings on each item, created
   implicitly by typing a new one — no rename-across-all-items or reorder.
 
@@ -144,3 +144,10 @@ till in a taxed jurisdiction needs this; it's absent today, not disabled.
   revenue/count/top-items, but stay visible in Reports' order history — this
   is deliberate (a record, not a delete) and should stay that way if order
   editing or refunds get added later.
+- `MenuItem.comboItems` was migrated from name-keyed `{ name, qty }` entries
+  to id-keyed `{ itemId, variant?, qty }` (one-off script, already run on
+  the local DB). `Order.items[].comboItems` is still a `string[]` display
+  snapshot and needs no migration.
+- Still open from the code audit, deliberately not tackled yet: `PATCH
+  /api/orders/:id` accepts any status transition (no state machine), and
+  money is stored as floating-point dollars rather than integer cents.

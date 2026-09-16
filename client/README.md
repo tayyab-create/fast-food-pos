@@ -44,12 +44,20 @@ src/
   components/
     LedgerTable.tsx         Shared sortable/paginated table
     OrderDetailModal.tsx    Shared order detail/confirmation popup
+    PayModal.tsx            Cash/Card tender step with change-due
+    ComboPicker.tsx         Combo-contents editor for the Menu form
+    Dropdown.tsx            Dropdown / SimpleDropdown / MultiSelectDropdown
+    Combobox.tsx            Free-text input with suggestions
+    DatePicker.tsx          Calendar popup
     NavBar.tsx
+  hooks/
+    useDismissable.ts       Close-on-outside-click/Escape for popups
   api/
     client.ts               fetch wrapper (JSON, error handling)
     menu.ts, orders.ts, reports.ts   Typed functions per backend resource
   types.ts                  Shared TS interfaces — kept in sync with the
                              backend's Mongoose schemas by hand
+  comboFormat.ts            Resolves combo entries (by item id) to labels/prices
   styles/
     ledger.css              The one global stylesheet (no CSS modules,
                              no per-component styles)
@@ -66,8 +74,8 @@ under `npm test` at the project root. UI changes are verified by building
 
 ## Linting
 
-`oxlint` is configured in `.oxlintrc.json` (React hooks rules, unused-export
-warnings), run via `npm run lint`. If it fails with a missing native binding
+`oxlint` is configured in `.oxlintrc.json` (`react/rules-of-hooks` as an
+error, `react/only-export-components` as a warning), run via `npm run lint`. If it fails with a missing native binding
 (`oxlint.<platform>.node`), reinstall `node_modules` for your platform —
 `@rolldown/binding-win32-x64-msvc` and similar packages are platform-specific
 and won't resolve if `node_modules` was copied from a different OS/arch.

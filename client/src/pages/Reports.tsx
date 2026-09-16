@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDailyReport } from '../api/reports';
 import { getOrders } from '../api/orders';
-import { DatePicker } from '../components/DatePicker';
+import { DatePicker, isoDateToLocalDate } from '../components/DatePicker';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
 import { OrderDetailModal } from '../components/OrderDetailModal';
@@ -9,10 +9,12 @@ import type { DailyReport, Order, OrderStatus, OrderType } from '../types';
 
 const STATUSES: OrderStatus[] = ['pending', 'preparing', 'ready', 'completed', 'voided'];
 const ORDER_TYPES: OrderType[] = ['dine-in', 'takeout', 'delivery'];
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function Reports() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
@@ -20,18 +22,25 @@ export function Reports() {
   const [toDate, setToDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  function load() {
-    getDailyReport().then(setReport);
-    getOrders().then((o) => setOrders([...o].sort((a, b) => b.orderNumber! - a.orderNumber!)));
+  async function load() {
+    try {
+      const [daily, all] = await Promise.all([getDailyReport(), getOrders()]);
+      setReport(daily);
+      setOrders([...all].sort((a, b) => b.orderNumber - a.orderNumber));
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Could not load reports.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  // fromDate/toDate are <input type="date"> values (local, no time) — treat the
-  // range as inclusive whole days: from midnight of fromDate to just before
-  // midnight the day after toDate.
-  const fromTime = fromDate ? new Date(fromDate).getTime() : -Infinity;
-  const toTime = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 : Infinity;
+  // Inclusive whole days in *local* time: from local midnight of fromDate up
+  // to (not including) local midnight the day after toDate.
+  const fromTime = isoDateToLocalDate(fromDate)?.getTime() ?? -Infinity;
+  const toTime = (isoDateToLocalDate(toDate)?.getTime() ?? Infinity) + DAY_MS;
 
   const filtered = orders.filter((o) => {
     const q = search.trim().toLowerCase();
@@ -39,7 +48,8 @@ export function Reports() {
       !q ||
       String(o.orderNumber).includes(q) ||
       o.items.some((i) => i.name.toLowerCase().includes(q)) ||
-      o.discount?.reason?.toLowerCase().includes(q);
+      o.discount?.reason?.toLowerCase().includes(q) ||
+      o.voidReason?.toLowerCase().includes(q);
     const matchesStatus = statusFilters.length === 0 || statusFilters.includes(o.status);
     const matchesType = typeFilters.length === 0 || typeFilters.includes(o.orderType ?? 'takeout');
     const createdAtTime = new Date(o.createdAt).getTime();
@@ -47,6 +57,9 @@ export function Reports() {
     return matchesSearch && matchesStatus && matchesType && matchesRange;
   });
 
+  const filtersActive = statusFilters.length > 0 || typeFilters.length > 0 || fromDate || toDate;
+
+  if (loadError) return <p className="field-error" role="alert">{loadError}</p>;
   if (!report) return <p>Loading…</p>;
 
   const topItems = report.topItems.slice(0, 10);
@@ -83,7 +96,8 @@ export function Reports() {
             <div className="section-header">Order History</div>
             <input
               type="text"
-              placeholder="Search by order #, item, or discount reason…"
+              placeholder="Search by order #, item, discount or void reason…"
+              aria-label="Search order history"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -103,12 +117,13 @@ export function Reports() {
               placeholder="All order types"
             />
             <div className="date-range-field">
-              <DatePicker value={fromDate} onChange={setFromDate} />
+              <DatePicker value={fromDate} onChange={setFromDate} placeholder="From" />
               <span className="muted-text">to</span>
-              <DatePicker value={toDate} onChange={setToDate} />
+              <DatePicker value={toDate} onChange={setToDate} placeholder="To" />
             </div>
-            {(statusFilters.length > 0 || typeFilters.length > 0 || fromDate || toDate) && (
+            {filtersActive && (
               <button
+                type="button"
                 className="ghost"
                 onClick={() => {
                   setStatusFilters([]);
@@ -124,7 +139,7 @@ export function Reports() {
 
           <LedgerTable
             columns={[
-              { header: 'Order #', width: '110px', render: (o) => `#${o.orderNumber}`, sortValue: (o) => o.orderNumber ?? 0 },
+              { header: 'Order #', width: '110px', render: (o) => `#${o.orderNumber}`, sortValue: (o) => o.orderNumber },
               {
                 header: 'Time',
                 width: '190px',
@@ -151,7 +166,7 @@ export function Reports() {
                   ) : (
                     <span className="muted-text">—</span>
                   ),
-                sortValue: (o) => (o.discount ? (o.discount.type === 'percent' ? o.discount.value : o.discount.value) : -1),
+                sortValue: (o) => (o.discount ? o.subtotal - o.total : -1),
               },
               {
                 header: 'Type',
@@ -169,7 +184,7 @@ export function Reports() {
             rows={filtered}
             rowKey={(o) => o._id}
             onRowClick={setSelectedOrder}
-            emptyMessage="No orders yet."
+            emptyMessage={filtersActive || search ? 'No orders match.' : 'No orders yet.'}
             pageSize={10}
             pageSizeOptions={[10, 25, 50]}
           />

@@ -18,9 +18,11 @@ module.exports = mongoose.model('Order', new mongoose.Schema({
   urgent: { type: Boolean, default: false },
   note: String,
   status: { type: String, enum: ['pending', 'preparing', 'ready', 'completed', 'voided'], default: 'pending' },
+  voidReason: String,   // required by the API when status becomes 'voided'
   statusHistory: [{
     status: { type: String, enum: ['pending', 'preparing', 'ready', 'completed', 'voided'] },
     at: { type: Date, default: Date.now },
+    reason: String,     // set on the 'voided' entry only
   }],
   createdAt: { type: Date, default: Date.now },
 }));

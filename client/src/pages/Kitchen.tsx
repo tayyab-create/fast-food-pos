@@ -1,23 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/orders';
 import { MultiSelectDropdown } from '../components/Dropdown';
+import { VoidOrderModal } from '../components/VoidOrderModal';
 import type { Order, OrderStatus, OrderType } from '../types';
 
 const ORDER_TYPES: OrderType[] = ['dine-in', 'takeout', 'delivery'];
 
-const NEXT_STATUS: Record<Exclude<OrderStatus, 'completed' | 'voided'>, OrderStatus> = {
+type Status = Exclude<OrderStatus, 'completed' | 'voided'>;
+
+const NEXT_STATUS: Record<Status, OrderStatus> = {
   pending: 'preparing',
   preparing: 'ready',
   ready: 'completed',
 };
-const NEXT_LABEL: Record<Exclude<OrderStatus, 'completed' | 'voided'>, string> = {
+const NEXT_LABEL: Record<Status, string> = {
   pending: 'Start Preparing',
   preparing: 'Mark Ready',
   ready: 'Complete',
 };
 const OVERDUE_MINUTES = Number(import.meta.env.VITE_OVERDUE_MINUTES) || 45;
+const POLL_MS = 3000;
 
-const COLUMNS: { status: Exclude<OrderStatus, 'completed' | 'voided'>; label: string }[] = [
+const COLUMNS: { status: Status; label: string }[] = [
   { status: 'pending', label: 'Pending' },
   { status: 'preparing', label: 'Preparing' },
   { status: 'ready', label: 'Ready' },
@@ -41,35 +45,48 @@ function formatElapsed(minutes: number): string {
   return `${years}y${remDays ? ` ${remDays}d` : ''} ago`;
 }
 
-type Status = Exclude<OrderStatus, 'completed' | 'voided'>;
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
 
 export function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [visible, setVisible] = useState<Set<Status>>(new Set(['pending', 'preparing', 'ready']));
   const [orderTypeFilters, setOrderTypeFilters] = useState<string[]>([]);
+  const [voidTarget, setVoidTarget] = useState<Order | null>(null);
+  // Skip a poll tick while the previous request is still in flight, so a slow
+  // network can't pile up overlapping fetches.
+  const inFlight = useRef(false);
 
   async function load() {
-    const all = await getOrders();
-    setOrders(all.filter((o) => o.status !== 'completed' && o.status !== 'voided'));
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const all = await getOrders();
+      setOrders(all.filter((o) => o.status !== 'completed' && o.status !== 'voided'));
+      setError(null);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not refresh orders.'));
+    } finally {
+      inFlight.current = false;
+    }
   }
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 3000);
+    const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, []);
 
-  async function advance(order: Order) {
-    if (order.status === 'completed') return;
-    await updateOrderStatus(order._id, NEXT_STATUS[order.status as Status]);
-    load();
-  }
-
-  async function voidOrder(order: Order) {
-    if (!window.confirm(`Void order #${order.orderNumber}? This can't be undone.`)) return;
-    await updateOrderStatus(order._id, 'voided');
-    load();
+  async function advance(order: Order, status: OrderStatus) {
+    try {
+      await updateOrderStatus(order._id, status);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, 'Could not update the order.'));
+    }
   }
 
   function toggleColumn(status: Status) {
@@ -84,7 +101,7 @@ export function Kitchen() {
   const query = search.trim().toLowerCase();
   const matchesSearch = (o: Order) =>
     !query ||
-    String(o.orderNumber ?? '').includes(query) ||
+    String(o.orderNumber).includes(query) ||
     o.items.some((i) => i.name.toLowerCase().includes(query));
   const matchesOrderType = (o: Order) =>
     orderTypeFilters.length === 0 || orderTypeFilters.includes(o.orderType ?? 'takeout');
@@ -97,14 +114,17 @@ export function Kitchen() {
         <input
           className="search-input"
           placeholder="Search by order # or item…"
+          aria-label="Search orders"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="option-row column-toggle">
+        <div className="option-row column-toggle" role="group" aria-label="Visible columns">
           {COLUMNS.map((col) => (
             <button
+              type="button"
               key={col.status}
               className={visible.has(col.status) ? 'active' : ''}
+              aria-pressed={visible.has(col.status)}
               onClick={() => toggleColumn(col.status)}
             >
               {col.label}
@@ -118,6 +138,8 @@ export function Kitchen() {
           placeholder="All order types"
         />
       </div>
+
+      {error && <p className="field-error" role="alert">{error}</p>}
 
       <div className="kds-board">
         {visibleColumns.length === 0 && <p className="kds-empty">No columns selected — choose one above.</p>}
@@ -148,10 +170,8 @@ export function Kitchen() {
                     <div className={`ticket${overdue ? ' overdue' : ''}${o.urgent ? ' urgent' : ''}`} key={o._id}>
                       <div className="ticket-header">
                         <span className="ticket-number">
-                          #{o.orderNumber ?? o._id.slice(-5)}
-                          {o.orderType && (
-                            <span className="order-type-tag">{o.orderType}</span>
-                          )}
+                          #{o.orderNumber}
+                          {o.orderType && <span className="order-type-tag">{o.orderType}</span>}
                           {o.urgent && <span className="urgent-tag">Urgent</span>}
                         </span>
                         <span className={`ticket-time${overdue ? ' overdue' : ''}`}>
@@ -171,8 +191,10 @@ export function Kitchen() {
                         ))}
                       </ul>
                       <div className="ticket-actions">
-                        <button className="primary" onClick={() => advance(o)}>{NEXT_LABEL[col.status]}</button>
-                        <button className="ghost danger" onClick={() => voidOrder(o)}>Void</button>
+                        <button type="button" className="primary" onClick={() => advance(o, NEXT_STATUS[col.status])}>
+                          {NEXT_LABEL[col.status]}
+                        </button>
+                        <button type="button" className="ghost danger" onClick={() => setVoidTarget(o)}>Void</button>
                       </div>
                     </div>
                   );
@@ -182,6 +204,17 @@ export function Kitchen() {
           );
         })}
       </div>
+
+      {voidTarget && (
+        <VoidOrderModal
+          order={voidTarget}
+          onClose={() => setVoidTarget(null)}
+          onVoided={() => {
+            setVoidTarget(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

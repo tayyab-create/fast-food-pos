@@ -12,7 +12,7 @@ entry, a kitchen display queue, daily sales reports, and menu management.
 
 - **Cashier** — tap-to-order menu grid with variants and combos, discounts,
   order notes, urgent flagging, held orders (resume a stashed cart later),
-  cash/card payment, and a printable-style order confirmation.
+  cash/card payment with change-due, and an on-screen order confirmation.
 - **Kitchen** — a live Pending/Preparing/Ready board, urgent and overdue
   highlighting, and order void/cancel.
 - **Reports** — daily order count and revenue, top-selling items, and a
@@ -22,7 +22,8 @@ entry, a kitchen display queue, daily sales reports, and menu management.
 
 ## Requirements
 
-- Node.js 20.6+ (uses the native `--env-file`-style `process.loadEnvFile()`)
+- Node.js 20.12+ / 21.7+ (uses the native `process.loadEnvFile()`; enforced
+  via `engines` in `package.json`)
 - A running MongoDB instance
 
 ## Getting started
@@ -35,7 +36,7 @@ npm install
 cp .env.example .env
 # edit .env if your MongoDB isn't at the default local URI
 
-# 3. Seed some sample menu items (optional)
+# 3. Seed sample menu items (optional — WIPES any existing menu first)
 npm run seed
 
 # 4. Run the backend

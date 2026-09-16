@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDismissable } from '../hooks/useDismissable';
 
 interface ComboboxProps {
   value: string;
@@ -17,22 +18,7 @@ interface ComboboxProps {
 export function Combobox({ value, options, onChange, placeholder, className }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  useDismissable(ref, open, () => setOpen(false));
 
   const query = value.trim().toLowerCase();
   const matches = query
@@ -54,15 +40,18 @@ export function Combobox({ value, options, onChange, placeholder, className }: C
       {open && matches.length > 0 && (
         <ul className="dropdown-list combobox-list" role="listbox">
           {matches.map((opt) => (
-            <li
-              key={opt}
-              role="option"
-              onClick={() => {
-                onChange(opt);
-                setOpen(false);
-              }}
-            >
-              {opt}
+            <li key={opt}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+              >
+                {opt}
+              </button>
             </li>
           ))}
         </ul>

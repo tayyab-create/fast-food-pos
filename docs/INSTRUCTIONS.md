@@ -44,8 +44,11 @@ These rules exist so the codebase stays easy to extend as more features
 - Status is shown as the one status pill defined in `DESIGN_LANGUAGE.md`
   (rounded tag, colored by state) — used once per order/ticket, never
   repeated as decoration elsewhere on the same screen.
-- Forms (menu add/edit, cart notes) must be usable via keyboard alone (tab
-  order, Enter to submit) — cashiers are moving fast at a counter.
+- Everything interactive must be usable via keyboard alone (tab order, Enter
+  to submit) — cashiers are moving fast at a counter. Prefer a real
+  `<button>`/`<input>` over an `onClick` on a `<div>`/`<li>`/`<tr>`; where a
+  non-button element must be clickable (`LedgerTable` rows and sort headers),
+  give it `tabIndex` and an Enter/Space handler.
 - Every destructive action (delete menu item, remove cart line) is a single
   explicit click on a clearly labeled control — no hidden gestures.
 - Menu item **variants** use a repeatable size/price row editor (`+ Add

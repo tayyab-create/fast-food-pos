@@ -1,21 +1,29 @@
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { Cashier } from './pages/Cashier';
 import { Kitchen } from './pages/Kitchen';
 import { Reports } from './pages/Reports';
 import { Menu } from './pages/Menu';
 
+function NotFound() {
+  return (
+    <p className="empty">
+      There's no page at this address. <Link to="/">Back to the Cashier</Link>
+    </p>
+  );
+}
+
 export default function App() {
-  const { pathname } = useLocation();
   return (
     <>
       <NavBar />
-      <main className={['/', '/menu', '/kitchen', '/reports'].includes(pathname) ? 'wide' : undefined}>
+      <main className="wide">
         <Routes>
           <Route path="/" element={<Cashier />} />
           <Route path="/kitchen" element={<Kitchen />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/menu" element={<Menu />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
     </>

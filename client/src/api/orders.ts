@@ -16,5 +16,6 @@ interface CreateOrderOptions {
 export const createOrder = (items: OrderItem[], options?: CreateOrderOptions) =>
   api.post<Order>('/orders', { items, ...options });
 
-export const updateOrderStatus = (id: string, status: OrderStatus) =>
-  api.patch<Order>(`/orders/${id}`, { status });
+/** `reason` is required by the server when `status` is 'voided'. */
+export const updateOrderStatus = (id: string, status: OrderStatus, reason?: string) =>
+  api.patch<Order>(`/orders/${id}`, { status, reason });

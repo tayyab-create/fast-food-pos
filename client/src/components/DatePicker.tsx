@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDismissable } from '../hooks/useDismissable';
 
 interface DatePickerProps {
   /** ISO date string "YYYY-MM-DD", or "" for no date selected. */
@@ -24,6 +25,13 @@ function parseISODate(value: string): { year: number; month: number; day: number
   return { year: Number(match[1]), month: Number(match[2]) - 1, day: Number(match[3]) };
 }
 
+/** Midnight *local time* on the given "YYYY-MM-DD" — unlike `new Date(iso)`,
+ * which parses a bare date as UTC and shifts it by the timezone offset. */
+export function isoDateToLocalDate(value: string): Date | null {
+  const parsed = parseISODate(value);
+  return parsed ? new Date(parsed.year, parsed.month, parsed.day) : null;
+}
+
 function formatDisplay(value: string): string {
   const parsed = parseISODate(value);
   if (!parsed) return '';
@@ -32,39 +40,23 @@ function formatDisplay(value: string): string {
 
 /** Ledger-styled calendar dropdown, replacing the native <input type="date">
  * whose popup can't be restyled with CSS in any browser. */
-export function DatePicker({ value, onChange, placeholder = 'mm/dd/yyyy', className }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder = 'Any date', className }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const today = new Date();
-  const selected = parseISODate(value);
-  const [viewYear, setViewYear] = useState(selected?.year ?? today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(selected?.month ?? today.getMonth());
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
   const ref = useRef<HTMLDivElement>(null);
+  useDismissable(ref, open, () => setOpen(false));
 
-  useEffect(() => {
-    if (!open) return;
-    // Re-sync the visible month to the current value each time it opens —
-    // deliberately not reacting to `value` while closed.
-    const parsed = parseISODate(value);
-    setViewYear(parsed?.year ?? today.getFullYear());
-    setViewMonth(parsed?.month ?? today.getMonth());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+  function toggle() {
+    if (!open) {
+      // Land on the selected date's month (or this month) each time it opens.
+      const parsed = parseISODate(value);
+      setViewYear(parsed?.year ?? today.getFullYear());
+      setViewMonth(parsed?.month ?? today.getMonth());
     }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+    setOpen((v) => !v);
+  }
 
   function changeMonth(delta: number) {
     let m = viewMonth + delta;
@@ -73,6 +65,11 @@ export function DatePicker({ value, onChange, placeholder = 'mm/dd/yyyy', classN
     if (m > 11) { m = 0; y += 1; }
     setViewMonth(m);
     setViewYear(y);
+  }
+
+  function pick(iso: string) {
+    onChange(iso);
+    setOpen(false);
   }
 
   const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
@@ -101,15 +98,15 @@ export function DatePicker({ value, onChange, placeholder = 'mm/dd/yyyy', classN
 
   return (
     <div className={`date-picker${className ? ` ${className}` : ''}`} ref={ref}>
-      <button type="button" className="date-picker-toggle" onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="date-picker-toggle" aria-haspopup="dialog" aria-expanded={open} onClick={toggle}>
         <span className={value ? undefined : 'placeholder'}>{value ? formatDisplay(value) : placeholder}</span>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
           <rect x="2" y="3" width="12" height="11" rx="1.5" />
           <path d="M2 6.5h12M5 2v2.5M11 2v2.5" strokeLinecap="round" />
         </svg>
       </button>
       {open && (
-        <div className="date-picker-panel">
+        <div className="date-picker-panel" role="dialog" aria-label="Choose a date">
           <div className="date-picker-header">
             <span className="date-picker-title">{MONTH_NAMES[viewMonth]} {viewYear}</span>
             <div className="date-picker-nav">
@@ -117,40 +114,29 @@ export function DatePicker({ value, onChange, placeholder = 'mm/dd/yyyy', classN
               <button type="button" className="icon" aria-label="Next month" onClick={() => changeMonth(1)}>›</button>
             </div>
           </div>
-          <div className="date-picker-grid date-picker-weekdays">
+          <div className="date-picker-grid date-picker-weekdays" aria-hidden="true">
             {WEEKDAYS.map((w) => <span key={w}>{w}</span>)}
           </div>
           <div className="date-picker-grid">
-            {cells.map((cell, i) => (
+            {cells.map((cell) => (
               <button
                 type="button"
-                key={i}
+                key={cell.iso}
                 className={[
                   cell.inMonth ? '' : 'muted',
                   cell.iso === value ? 'selected' : '',
                   cell.iso === todayISO ? 'today' : '',
-                ].filter(Boolean).join(' ')}
-                onClick={() => {
-                  onChange(cell.iso);
-                  setOpen(false);
-                }}
+                ].filter(Boolean).join(' ') || undefined}
+                aria-pressed={cell.iso === value}
+                onClick={() => pick(cell.iso)}
               >
                 {cell.day}
               </button>
             ))}
           </div>
           <div className="date-picker-footer">
-            <button type="button" className="ghost" onClick={() => { onChange(''); setOpen(false); }}>Clear</button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                onChange(todayISO);
-                setOpen(false);
-              }}
-            >
-              Today
-            </button>
+            <button type="button" className="ghost" onClick={() => pick('')}>Clear</button>
+            <button type="button" className="ghost" onClick={() => pick(todayISO)}>Today</button>
           </div>
         </div>
       )}

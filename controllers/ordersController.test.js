@@ -3,12 +3,15 @@ const assert = require('node:assert/strict');
 const { resolveItem, applyDiscount } = require('./ordersController');
 
 const menu = [
-  { name: 'Cheeseburger', price: 5.99 },
-  { name: 'Chicken Nuggets (6pc)', price: 4.99 },
-  { name: 'Combo Meal', price: 8.99, isCombo: true, comboItems: [{ name: 'Cheeseburger', qty: 2 }, { name: 'Fries (Large)', qty: 1 }] },
-  { name: 'Pizza', price: 0, variants: [{ name: 'Medium', price: 7.99 }, { name: 'Large', price: 9.99 }] },
-  { name: 'Sold Out Burger', price: 6.99, available: false },
-  { name: 'Sold Out Pizza', price: 0, available: false, variants: [{ name: 'Medium', price: 7.99 }] },
+  { _id: 'cb', name: 'Cheeseburger', price: 5.99 },
+  { _id: 'nug', name: 'Chicken Nuggets (6pc)', price: 4.99 },
+  { _id: 'fries', name: 'Fries', price: 0, variants: [{ name: 'Small', price: 2.49 }, { name: 'Large', price: 3.49 }] },
+  { _id: 'combo', name: 'Combo Meal', price: 8.99, isCombo: true, comboItems: [{ itemId: 'cb', qty: 2 }, { itemId: 'fries', variant: 'Large', qty: 1 }] },
+  { _id: 'pizza', name: 'Pizza', price: 0, variants: [{ name: 'Medium', price: 7.99 }, { name: 'Large', price: 9.99 }] },
+  { _id: 'sob', name: 'Sold Out Burger', price: 6.99, available: false },
+  { _id: 'sop', name: 'Sold Out Pizza', price: 0, available: false, variants: [{ name: 'Medium', price: 7.99 }] },
+  { _id: 'combo-86', name: 'Sold Out Combo', price: 9.99, isCombo: true, comboItems: [{ itemId: 'cb', qty: 1 }, { itemId: 'sob', qty: 1 }] },
+  { _id: 'combo-gone', name: 'Ghost Combo', price: 9.99, isCombo: true, comboItems: [{ itemId: 'cb', qty: 1 }, { itemId: 'deleted', qty: 1 }] },
 ];
 
 test('resolveItem resolves a plain menu item at the catalog price, ignoring a spoofed price', () => {
@@ -30,11 +33,22 @@ test('resolveItem resolves "Base (Variant)" against the variant price', () => {
   assert.equal(item.price, 9.99);
 });
 
-test('resolveItem carries comboItems for a combo, formatted with quantities, not for a plain item', () => {
+test('resolveItem resolves a combo\'s item ids into named, quantified contents; plain items carry none', () => {
   const combo = resolveItem({ name: 'Combo Meal', qty: 1 }, menu).item;
   assert.deepEqual(combo.comboItems, ['2× Cheeseburger', 'Fries (Large)']);
   const plain = resolveItem({ name: 'Cheeseburger', qty: 1 }, menu).item;
   assert.equal(plain.comboItems, undefined);
+});
+
+test('resolveItem rejects a combo whose contents include an unavailable item', () => {
+  const { error } = resolveItem({ name: 'Sold Out Combo', qty: 1 }, menu);
+  assert.match(error, /includes "Sold Out Burger", which is currently unavailable/);
+});
+
+test('resolveItem skips a combo entry whose item no longer exists rather than failing', () => {
+  const { item, error } = resolveItem({ name: 'Ghost Combo', qty: 1 }, menu);
+  assert.equal(error, undefined);
+  assert.deepEqual(item.comboItems, ['Cheeseburger']);
 });
 
 test('resolveItem rejects zero, negative, and non-integer quantities', () => {
@@ -107,6 +121,19 @@ test('applyDiscount never lets total go negative', () => {
   // A flat discount exactly equal to the subtotal must not push total below zero.
   const result = applyDiscount({ type: 'flat', value: 20 }, 20);
   assert.equal(result.total, 0);
+});
+
+test('applyDiscount rounds a percent discount and the total to cents', () => {
+  // 10% of 5.99 is 0.599 — must land on 0.60 / 5.39, never carry a third decimal.
+  const result = applyDiscount({ type: 'percent', value: 10 }, 5.99);
+  assert.equal(result.discountAmount, 0.6);
+  assert.equal(result.total, 5.39);
+});
+
+test('applyDiscount rejects a value with more than two decimal places', () => {
+  assert.match(applyDiscount({ type: 'flat', value: 1.005 }, 20).error, /two decimal/);
+  assert.match(applyDiscount({ type: 'percent', value: 12.345 }, 20).error, /two decimal/);
+  assert.equal(applyDiscount({ type: 'percent', value: 12.5 }, 20).error, undefined);
 });
 
 test('applyDiscount truncates a discount reason to 100 chars', () => {
