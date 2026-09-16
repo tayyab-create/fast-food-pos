@@ -129,6 +129,20 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
           )}
         </div>
 
+        {!confirmed && !!order.statusHistory?.length && (
+          <>
+            <div className="section-header">Status history</div>
+            <ul className="status-history">
+              {order.statusHistory.map((change, i) => (
+                <li key={i}>
+                  <span className={`status-pill ${change.status}`}>{change.status}</span>
+                  <span className="muted-text">{new Date(change.at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
         <div className="checkout-row">
           {!confirmed && VOIDABLE_STATUSES.includes(order.status) && (
             <button className="ghost danger" onClick={voidOrder}>

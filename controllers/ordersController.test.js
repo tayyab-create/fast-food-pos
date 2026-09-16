@@ -5,7 +5,7 @@ const { resolveItem, applyDiscount } = require('./ordersController');
 const menu = [
   { name: 'Cheeseburger', price: 5.99 },
   { name: 'Chicken Nuggets (6pc)', price: 4.99 },
-  { name: 'Combo Meal', price: 8.99, isCombo: true, comboItems: ['Cheeseburger', 'Fries (Large)'] },
+  { name: 'Combo Meal', price: 8.99, isCombo: true, comboItems: [{ name: 'Cheeseburger', qty: 2 }, { name: 'Fries (Large)', qty: 1 }] },
   { name: 'Pizza', price: 0, variants: [{ name: 'Medium', price: 7.99 }, { name: 'Large', price: 9.99 }] },
   { name: 'Sold Out Burger', price: 6.99, available: false },
   { name: 'Sold Out Pizza', price: 0, available: false, variants: [{ name: 'Medium', price: 7.99 }] },
@@ -30,9 +30,9 @@ test('resolveItem resolves "Base (Variant)" against the variant price', () => {
   assert.equal(item.price, 9.99);
 });
 
-test('resolveItem carries comboItems for a combo, not for a plain item', () => {
+test('resolveItem carries comboItems for a combo, formatted with quantities, not for a plain item', () => {
   const combo = resolveItem({ name: 'Combo Meal', qty: 1 }, menu).item;
-  assert.deepEqual(combo.comboItems, ['Cheeseburger', 'Fries (Large)']);
+  assert.deepEqual(combo.comboItems, ['2× Cheeseburger', 'Fries (Large)']);
   const plain = resolveItem({ name: 'Cheeseburger', qty: 1 }, menu).item;
   assert.equal(plain.comboItems, undefined);
 });

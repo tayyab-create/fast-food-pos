@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 
+function DropdownCaret({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`dropdown-caret${open ? ' open' : ''}`}
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+    >
+      <path d="M2 3.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export interface DropdownOption<T> {
   value: T;
   label: string;
@@ -57,7 +73,7 @@ export function Dropdown<T extends string | number>({
         onClick={() => !disabled && setOpen((v) => !v)}
       >
         <span>{label}</span>
-        <span className={`dropdown-caret${open ? ' open' : ''}`}>▾</span>
+        <DropdownCaret open={open} />
       </button>
       {open && (
         <ul className="dropdown-list" role="listbox">
@@ -147,7 +163,7 @@ export function MultiSelectDropdown({ values, options, onChange, placeholder = '
     <div className={`dropdown${className ? ` ${className}` : ''}`} ref={ref}>
       <button type="button" className="dropdown-toggle" onClick={() => setOpen((v) => !v)}>
         <span>{label}</span>
-        <span className={`dropdown-caret${open ? ' open' : ''}`}>▾</span>
+        <DropdownCaret open={open} />
       </button>
       {open && (
         <ul className="dropdown-list" role="listbox">

@@ -37,11 +37,15 @@ client/                 Vite + React + TypeScript SPA
       Dropdown.tsx            Custom listbox (replaces native <select> app-wide) — scroll-capped, styleable;
                                see "Reusable components" below
       Combobox.tsx            Free-text input with type-ahead suggestions, never forces a match
+      DatePicker.tsx          Custom calendar (replaces native <input type="date">) — same
+                               reasoning as Dropdown; see "Reusable components" below
       NavBar.tsx
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
       menu.ts, orders.ts, reports.ts   Typed functions per resource
     types.ts                  Shared TS interfaces (mirror backend shapes)
+    comboFormat.ts             formatComboEntry(): "2× Name" display formatting, shared by
+                               Cashier/Menu (must match ordersController.js's own copy)
     styles/
       ledger.css              Global ledger visual theme
 ```
@@ -54,7 +58,10 @@ client/                 Vite + React + TypeScript SPA
   _id, name: string, price: number, category: string,
   variants?: [{ name: string, price: number }],  // e.g. pizza sizes; price becomes per-variant
   isCombo?: boolean,
-  comboItems?: string[],                           // e.g. ["Cheeseburger", "Fries", "Pizza (Medium)"]
+  comboItems?: [{ name: string, qty: number }],    // e.g. [{name:"Cheeseburger",qty:2},{name:"Fries (Large)",qty:1}]
+                                                     // qty defaults to 1; name follows the same "Base (Variant)"
+                                                     // convention as Order.items — matched against the catalog live,
+                                                     // not a price snapshot (see resolveItem in ordersController.js)
   image?: string,                                   // "/uploads/<itemId>.jpg?v=<timestamp>", undefined if none
   available?: boolean,   // default true; false = "86'd" — hidden from Cashier, rejected server-side, kept in Menu admin
 }
@@ -67,6 +74,8 @@ client/                 Vite + React + TypeScript SPA
   orderNumber: number,   // sequential, per-order (1, 2, 3, ...) — not the Mongo _id
                          // assigned atomically from a Counter doc (_id: 'orderNumber'), race-safe across concurrent creates
   items: [{ name: string, price: number, qty: number, note?: string, comboItems?: string[] }],
+                         // comboItems here is a formatted display snapshot, e.g. ["2× Cheeseburger", "Fries (Large)"] —
+                         // derived from MenuItem.comboItems at order time, not the structured {name,qty} shape
   subtotal: number,
   discount?: { type: 'percent' | 'flat', value: number, reason?: string },
   total: number,   // subtotal minus discount, clamped to >= 0
@@ -78,6 +87,10 @@ client/                 Vite + React + TypeScript SPA
   status: 'pending' | 'preparing' | 'ready' | 'completed' | 'voided',
     // voided orders are excluded from the Kitchen board and daily report revenue,
     // but stay visible in Reports' order history — a record, not a delete
+  statusHistory: [{ status: string, at: Date }],
+    // one entry per status change, oldest first — seeded with 'pending' at creation,
+    // appended (never rewritten) on every PATCH /api/orders/:id; shown as a timeline
+    // in OrderDetailModal's non-confirmed (Reports history) view
   createdAt: Date,
 }
 ```
@@ -120,27 +133,36 @@ stays about architecture and data shapes.
   confirm — matching how Square/Toast separate payment from cart-building
   rather than picking it inline. Menu items marked unavailable
   (`available: false`) are hidden from the tile grid entirely.
-- **Kitchen (`/kitchen`)**: a search bar plus Pending/Preparing/Ready column
-  toggles, then a board of the visible columns (hiding a column lets the rest
-  expand to fill the page). Orders shown as ledger tickets (sequential order
-  number, a non-"takeout" order-type tag, an "Urgent" tag + tinted background
-  when flagged, elapsed time since placed — tinted red past
+- **Kitchen (`/kitchen`)**: a search bar, Pending/Preparing/Ready column
+  toggles, and a multi-select order-type filter, then a board of the visible
+  columns (hiding a column lets the rest expand to fill the page). Orders
+  shown as ledger tickets (sequential order number, an order-type tag, an
+  "Urgent" tag + tinted background when flagged, elapsed time since placed — tinted red past
   `VITE_OVERDUE_MINUTES` (default 45), the order-wide note as a highlighted
   callout, itemized lines with per-item notes and combo contents, one button
   to advance to the next status, plus a Void action). Urgent orders sort to
   the top of their column. Polls `/api/orders` every 3 seconds.
 - **Reports (`/reports`)**: today's order count and revenue as ledger stat
-  lines, plus a ruled table of top-selling items by quantity.
-- **Menu (`/menu`)**: a search bar + category filter above a ledger table of
-  menu items (each row shows a 32px thumbnail when it has an `image`).
-  Clicking a row shows its details in a sticky sidebar (Edit/Mark 86'd/Delete
-  actions, with a confirm dialog before delete); "+ Add item" or Edit opens a
-  form in the same sidebar — name/category/price fields, an "Available for
-  sale" checkbox, a repeatable size-row editor for variants, a searchable
-  checklist to build combos from existing items (with a per-item size picker
-  when the item has variants), and a file input + live preview + remove
-  action for the product photo. Unavailable items stay in the list (tagged
-  "(86'd)") rather than being deleted.
+  lines, a ruled table of top-selling items by quantity, and a searchable,
+  sortable, paginated Order History table (search by order #/item/discount
+  reason; multi-select Status and Order type filters; a From/To date-range
+  pair matched as inclusive whole days against `createdAt`; a "Clear filters"
+  button appears once any filter is active). Clicking a row opens
+  `OrderDetailModal` (with a Void action and the status-history timeline).
+- **Menu (`/menu`)**: a search bar + multi-select category filter above a
+  ledger table of menu items (each row shows a 32px thumbnail when it has an
+  `image`). Clicking a row shows its details in a sticky sidebar (Edit/Mark
+  86'd/Delete actions, with a confirm dialog before delete); "+ Add item" or
+  Edit opens a form in the same sidebar — name/category/price fields (a
+  free-text-with-suggestions Combobox for category, unless "This is a combo"
+  is checked, which locks category to "Combo"), an "Available for sale"
+  checkbox, a repeatable size-row editor for variants, a searchable checklist
+  to build combos from existing items (a per-item size picker when the item
+  has variants, a qty stepper per selected item, and a running price sum —
+  the item's own price field auto-fills from that sum until the user types
+  their own, so it can be saved as-is or overridden), and a file input + live
+  preview + remove action for the product photo. Unavailable items stay in
+  the list (tagged "(86'd)") rather than being deleted.
 
 ## Reusable components
 Shared building blocks that should be reused rather than re-implemented — if
@@ -189,6 +211,15 @@ first.
   and hides the list entirely once nothing matches — never forces a
   selection, whatever's typed is the value on save. Used by Menu's item-form
   Category field.
+- **`DatePicker`** (`components/DatePicker.tsx`) — replaces native
+  `<input type="date">`, whose calendar popup is rendered by the OS/browser
+  and can't be restyled with CSS in any browser (the same limitation that
+  motivated `Dropdown` over native `<select>`). A toggle button showing the
+  formatted date opens a ledger-styled month-grid panel (prev/next month,
+  today/selected-day highlighting, Clear/Today shortcuts). Takes/returns a
+  plain `"YYYY-MM-DD"` string (or `""` for unset), so it's a drop-in
+  replacement for a native date input's value. Used by Reports' Order
+  History date-range filter.
 
 ## Dev & build
 - Dev: `npm start` (Express API, :3000) + `cd client && npm run dev` (Vite,

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getOrders, updateOrderStatus } from '../api/orders';
-import type { Order, OrderStatus } from '../types';
+import { MultiSelectDropdown } from '../components/Dropdown';
+import type { Order, OrderStatus, OrderType } from '../types';
+
+const ORDER_TYPES: OrderType[] = ['dine-in', 'takeout', 'delivery'];
 
 const NEXT_STATUS: Record<Exclude<OrderStatus, 'completed' | 'voided'>, OrderStatus> = {
   pending: 'preparing',
@@ -44,6 +47,7 @@ export function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState('');
   const [visible, setVisible] = useState<Set<Status>>(new Set(['pending', 'preparing', 'ready']));
+  const [orderTypeFilters, setOrderTypeFilters] = useState<string[]>([]);
 
   async function load() {
     const all = await getOrders();
@@ -82,6 +86,8 @@ export function Kitchen() {
     !query ||
     String(o.orderNumber ?? '').includes(query) ||
     o.items.some((i) => i.name.toLowerCase().includes(query));
+  const matchesOrderType = (o: Order) =>
+    orderTypeFilters.length === 0 || orderTypeFilters.includes(o.orderType ?? 'takeout');
 
   const visibleColumns = COLUMNS.filter((col) => visible.has(col.status));
 
@@ -105,6 +111,12 @@ export function Kitchen() {
             </button>
           ))}
         </div>
+        <MultiSelectDropdown
+          values={orderTypeFilters}
+          options={ORDER_TYPES}
+          onChange={setOrderTypeFilters}
+          placeholder="All order types"
+        />
       </div>
 
       <div className="kds-board">
@@ -113,6 +125,7 @@ export function Kitchen() {
           const columnOrders = orders
             .filter((o) => o.status === col.status)
             .filter(matchesSearch)
+            .filter(matchesOrderType)
             .sort((a, b) => {
               if (!!b.urgent !== !!a.urgent) return a.urgent ? -1 : 1;
               return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -136,7 +149,7 @@ export function Kitchen() {
                       <div className="ticket-header">
                         <span className="ticket-number">
                           #{o.orderNumber ?? o._id.slice(-5)}
-                          {o.orderType && o.orderType !== 'takeout' && (
+                          {o.orderType && (
                             <span className="order-type-tag">{o.orderType}</span>
                           )}
                           {o.urgent && <span className="urgent-tag">Urgent</span>}

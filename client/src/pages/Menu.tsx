@@ -7,22 +7,31 @@ import {
   updateMenuItem,
   uploadMenuItemImage,
 } from '../api/menu';
+import { comboItemsTotal, formatComboEntry, priceForComboEntry } from '../comboFormat';
 import { Combobox } from '../components/Combobox';
 import { Dropdown, MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
-import type { MenuItem, Variant } from '../types';
+import type { ComboEntry, MenuItem, Variant } from '../types';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const COMBO_CATEGORY = 'Combo';
+
+// A combo entry's `name` doubles as its match key, using the same
+// "Base (Variant)" convention the cart/order pricing already relies on.
+interface ComboFormEntry extends ComboEntry {
+  price: number;
+}
 
 interface FormState {
   name: string;
   category: string;
   price: string;
+  priceEdited: boolean;
   hasVariants: boolean;
   variants: Variant[];
   isCombo: boolean;
-  comboItems: string[];
+  comboItems: ComboFormEntry[];
   available: boolean;
 }
 
@@ -30,6 +39,7 @@ const EMPTY_FORM: FormState = {
   name: '',
   category: '',
   price: '',
+  priceEdited: false,
   hasVariants: false,
   variants: [],
   isCombo: false,
@@ -39,7 +49,7 @@ const EMPTY_FORM: FormState = {
 
 function describe(item: MenuItem): string {
   if (item.variants?.length) return `${item.variants.length} size${item.variants.length > 1 ? 's' : ''}`;
-  if (item.isCombo) return item.comboItems?.length ? item.comboItems.join(' + ') : 'Combo';
+  if (item.isCombo) return item.comboItems?.length ? item.comboItems.map(formatComboEntry).join(' + ') : 'Combo';
   return '—';
 }
 
@@ -74,7 +84,7 @@ export function Menu() {
   // an item can silently orphan a combo's reference — warn using already-loaded items.
   function combosReferencing(itemName: string): string[] {
     return items
-      .filter((i) => i.isCombo && i.comboItems?.some((entry) => entry === itemName || entry.startsWith(`${itemName} (`)))
+      .filter((i) => i.isCombo && i.comboItems?.some((entry) => entry.name === itemName || entry.name.startsWith(`${itemName} (`)))
       .map((i) => i.name);
   }
 
@@ -104,10 +114,11 @@ export function Menu() {
       name: item.name,
       category: item.category,
       price: String(item.price),
+      priceEdited: true,
       hasVariants: !!item.variants?.length,
       variants: item.variants ?? [],
       isCombo: !!item.isCombo,
-      comboItems: item.comboItems ?? [],
+      comboItems: (item.comboItems ?? []).map((c) => ({ ...c, price: priceForComboEntry(c, items) })),
       available: item.available !== false,
     });
     resetImageState(item.image);
@@ -162,32 +173,51 @@ export function Menu() {
     setForm((f) => ({ ...f, variants: f.variants.filter((_, i) => i !== index) }));
   }
 
-  function comboEntryFor(candidate: MenuItem): string | undefined {
+  // Applies a comboItems update, and — unless the user has typed their own
+  // price — refreshes `price` to the new sum, so it always starts out
+  // correct but never fights a deliberate manual edit.
+  function updateComboItems(updater: (items: ComboFormEntry[]) => ComboFormEntry[]) {
+    setForm((f) => {
+      const comboItems = updater(f.comboItems);
+      const sum = comboItems.reduce((total, c) => total + c.price * c.qty, 0);
+      return { ...f, comboItems, price: f.priceEdited ? f.price : sum.toFixed(2) };
+    });
+  }
+
+  function comboEntryFor(candidate: MenuItem): ComboFormEntry | undefined {
     return form.comboItems.find((entry) =>
-      candidate.variants?.length ? entry.startsWith(`${candidate.name} (`) : entry === candidate.name
+      candidate.variants?.length ? entry.name.startsWith(`${candidate.name} (`) : entry.name === candidate.name
     );
   }
 
   function toggleComboItem(candidate: MenuItem) {
     const existing = comboEntryFor(candidate);
     if (existing) {
-      setForm((f) => ({ ...f, comboItems: f.comboItems.filter((n) => n !== existing) }));
+      updateComboItems((prev) => prev.filter((c) => c !== existing));
       return;
     }
-    const entry = candidate.variants?.length
-      ? `${candidate.name} (${candidate.variants[0].name})`
-      : candidate.name;
-    setForm((f) => ({ ...f, comboItems: [...f.comboItems, entry] }));
+    const variant = candidate.variants?.[0];
+    const entry: ComboFormEntry = variant
+      ? { name: `${candidate.name} (${variant.name})`, qty: 1, price: variant.price }
+      : { name: candidate.name, qty: 1, price: candidate.price };
+    updateComboItems((prev) => [...prev, entry]);
   }
 
   function setComboVariant(candidate: MenuItem, variantName: string) {
     const existing = comboEntryFor(candidate);
-    const entry = `${candidate.name} (${variantName})`;
-    setForm((f) => ({
-      ...f,
-      comboItems: existing ? f.comboItems.map((n) => (n === existing ? entry : n)) : [...f.comboItems, entry],
-    }));
+    const variant = candidate.variants?.find((v) => v.name === variantName);
+    const entry: ComboFormEntry = { name: `${candidate.name} (${variantName})`, qty: existing?.qty ?? 1, price: variant?.price ?? 0 };
+    updateComboItems((prev) => (existing ? prev.map((c) => (c === existing ? entry : c)) : [...prev, entry]));
   }
+
+  function setComboQty(candidate: MenuItem, qty: number) {
+    if (!(qty > 0)) return;
+    const existing = comboEntryFor(candidate);
+    if (!existing) return;
+    updateComboItems((prev) => prev.map((c) => (c === existing ? { ...c, qty } : c)));
+  }
+
+  const comboSum = form.comboItems.reduce((total, c) => total + c.price * c.qty, 0);
 
   function validateForm(name: string): boolean {
     const errors: typeof fieldErrors = {};
@@ -227,7 +257,7 @@ export function Menu() {
       category: form.category || 'Other',
       variants: form.hasVariants ? form.variants.filter((v) => v.name) : [],
       isCombo: form.isCombo,
-      comboItems: form.isCombo ? form.comboItems : [],
+      comboItems: form.isCombo ? form.comboItems.map(({ name, qty }) => ({ name, qty })) : [],
       available: form.available,
     };
     try {
@@ -348,12 +378,16 @@ export function Menu() {
               </label>
               <label>
                 Category
-                <Combobox
-                  className={fieldErrors.category ? 'invalid' : undefined}
-                  value={form.category}
-                  options={distinctCategories}
-                  onChange={(category) => setForm({ ...form, category })}
-                />
+                {form.isCombo ? (
+                  <input value={COMBO_CATEGORY} disabled readOnly />
+                ) : (
+                  <Combobox
+                    className={fieldErrors.category ? 'invalid' : undefined}
+                    value={form.category}
+                    options={distinctCategories}
+                    onChange={(category) => setForm({ ...form, category })}
+                  />
+                )}
                 {fieldErrors.category && <p className="field-error">{fieldErrors.category}</p>}
               </label>
               <label>
@@ -363,8 +397,11 @@ export function Menu() {
                   step="0.01"
                   className={fieldErrors.price ? 'invalid' : undefined}
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(e) => setForm({ ...form, price: e.target.value, priceEdited: true })}
                 />
+                {form.isCombo && form.comboItems.length > 0 && (
+                  <span className="hint">Sum of items: ${comboSum.toFixed(2)}</span>
+                )}
                 {fieldErrors.price && <p className="field-error">{fieldErrors.price}</p>}
               </label>
             </div>
@@ -432,7 +469,13 @@ export function Menu() {
               <input
                 type="checkbox"
                 checked={form.isCombo}
-                onChange={(e) => setForm({ ...form, isCombo: e.target.checked })}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    isCombo: e.target.checked,
+                    category: e.target.checked ? COMBO_CATEGORY : f.category === COMBO_CATEGORY ? '' : f.category,
+                  }))
+                }
               />
               This is a combo
             </label>
@@ -449,11 +492,21 @@ export function Menu() {
                   {comboCandidates.length === 0 && <p className="empty">No items match.</p>}
                   {comboCandidates.map((i) => {
                     const entry = comboEntryFor(i);
-                    const selectedVariant = entry?.match(/\(([^)]+)\)$/)?.[1] ?? i.variants?.[0]?.name;
+                    const selectedVariant = entry?.name.match(/\(([^)]+)\)$/)?.[1] ?? i.variants?.[0]?.name;
                     return (
                       <div className="combo-picker-row" key={i._id} onClick={() => toggleComboItem(i)}>
                         <input type="checkbox" checked={!!entry} readOnly />
                         <span className="combo-picker-name">{i.name}</span>
+                        {entry && (
+                          <input
+                            type="number"
+                            min={1}
+                            className="num combo-qty-input"
+                            value={entry.qty}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setComboQty(i, Number(e.target.value))}
+                          />
+                        )}
                         {i.variants?.length ? (
                           <Dropdown
                             value={selectedVariant ?? ''}
@@ -468,6 +521,12 @@ export function Menu() {
                     );
                   })}
                 </div>
+                {form.comboItems.length > 0 && (
+                  <div className="combo-sum">
+                    <span>Sum of selected items</span>
+                    <span className="num">${comboSum.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -498,7 +557,16 @@ export function Menu() {
             {selected.isCombo && (
               <>
                 <div className="section-header">Includes</div>
-                <p className="hint">{selected.comboItems?.length ? selected.comboItems.join(' + ') : 'No items selected'}</p>
+                <p className="hint">{selected.comboItems?.length ? selected.comboItems.map(formatComboEntry).join(' + ') : 'No items selected'}</p>
+                {(() => {
+                  const separateTotal = selected.comboItems?.length ? comboItemsTotal(selected.comboItems, items) : 0;
+                  return separateTotal > selected.price ? (
+                    <div className="detail-row">
+                      <span>Bought separately</span>
+                      <span className="num combo-strike">${separateTotal.toFixed(2)}</span>
+                    </div>
+                  ) : null;
+                })()}
               </>
             )}
             <div className="form-actions">

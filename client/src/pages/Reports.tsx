@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react';
 import { getDailyReport } from '../api/reports';
 import { getOrders } from '../api/orders';
+import { DatePicker } from '../components/DatePicker';
+import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
 import { OrderDetailModal } from '../components/OrderDetailModal';
-import type { DailyReport, Order } from '../types';
+import type { DailyReport, Order, OrderStatus, OrderType } from '../types';
+
+const STATUSES: OrderStatus[] = ['pending', 'preparing', 'ready', 'completed', 'voided'];
+const ORDER_TYPES: OrderType[] = ['dine-in', 'takeout', 'delivery'];
 
 export function Reports() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   function load() {
@@ -18,14 +27,24 @@ export function Reports() {
 
   useEffect(load, []);
 
+  // fromDate/toDate are <input type="date"> values (local, no time) — treat the
+  // range as inclusive whole days: from midnight of fromDate to just before
+  // midnight the day after toDate.
+  const fromTime = fromDate ? new Date(fromDate).getTime() : -Infinity;
+  const toTime = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 : Infinity;
+
   const filtered = orders.filter((o) => {
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
+    const matchesSearch =
+      !q ||
       String(o.orderNumber).includes(q) ||
       o.items.some((i) => i.name.toLowerCase().includes(q)) ||
-      o.discount?.reason?.toLowerCase().includes(q)
-    );
+      o.discount?.reason?.toLowerCase().includes(q);
+    const matchesStatus = statusFilters.length === 0 || statusFilters.includes(o.status);
+    const matchesType = typeFilters.length === 0 || typeFilters.includes(o.orderType ?? 'takeout');
+    const createdAtTime = new Date(o.createdAt).getTime();
+    const matchesRange = createdAtTime >= fromTime && createdAtTime < toTime;
+    return matchesSearch && matchesStatus && matchesType && matchesRange;
   });
 
   if (!report) return <p>Loading…</p>;
@@ -68,6 +87,39 @@ export function Reports() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+
+          <div className="reports-filter-bar">
+            <MultiSelectDropdown
+              values={statusFilters}
+              options={STATUSES}
+              onChange={setStatusFilters}
+              placeholder="All statuses"
+            />
+            <MultiSelectDropdown
+              values={typeFilters}
+              options={ORDER_TYPES}
+              onChange={setTypeFilters}
+              placeholder="All order types"
+            />
+            <div className="date-range-field">
+              <DatePicker value={fromDate} onChange={setFromDate} />
+              <span className="muted-text">to</span>
+              <DatePicker value={toDate} onChange={setToDate} />
+            </div>
+            {(statusFilters.length > 0 || typeFilters.length > 0 || fromDate || toDate) && (
+              <button
+                className="ghost"
+                onClick={() => {
+                  setStatusFilters([]);
+                  setTypeFilters([]);
+                  setFromDate('');
+                  setToDate('');
+                }}
+              >
+                Clear filters
+              </button>
+            )}
           </div>
 
           <LedgerTable

@@ -3,6 +3,11 @@ export interface Variant {
   price: number;
 }
 
+export interface ComboEntry {
+  name: string;
+  qty: number;
+}
+
 export interface MenuItem {
   _id: string;
   name: string;
@@ -10,7 +15,7 @@ export interface MenuItem {
   category: string;
   variants?: Variant[];
   isCombo?: boolean;
-  comboItems?: string[];
+  comboItems?: ComboEntry[];
   image?: string;
   available?: boolean;
 }
@@ -34,6 +39,11 @@ export interface Discount {
 export type PaymentMethod = 'cash' | 'card';
 export type OrderType = 'dine-in' | 'takeout' | 'delivery';
 
+export interface StatusChange {
+  status: OrderStatus;
+  at: string;
+}
+
 export interface Order {
   _id: string;
   orderNumber?: number;
@@ -47,6 +57,7 @@ export interface Order {
   urgent?: boolean;
   note?: string;
   status: OrderStatus;
+  statusHistory?: StatusChange[];
   createdAt: string;
 }
 

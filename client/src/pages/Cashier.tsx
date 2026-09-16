@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMenu } from '../api/menu';
 import { createOrder } from '../api/orders';
+import { comboItemsTotal, formatComboEntry } from '../comboFormat';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import type { Discount, MenuItem, Order, OrderItem, OrderType, PaymentMethod } from '../types';
 
@@ -96,7 +97,8 @@ export function Cashier() {
       setExpandedTile((prev) => (prev === item._id ? null : item._id));
       return;
     }
-    addLine(item.name, item.price, item.isCombo ? item.comboItems : undefined);
+    const comboItems = item.isCombo ? item.comboItems?.map(formatComboEntry) : undefined;
+    addLine(item.name, item.price, comboItems);
   }
 
   function pickVariant(item: MenuItem, variantName: string, price: number) {
@@ -263,43 +265,53 @@ export function Cashier() {
         </div>
 
         <div className="item-grid">
-          {visibleItems.map((item) => (
-            <div
-              className="item-tile"
-              key={item._id}
-              role="button"
-              tabIndex={0}
-              onClick={() => tapTile(item)}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && tapTile(item)}
-            >
-              {item.image && <img className="item-tile-image" src={item.image} alt="" />}
-              <span className="name">{item.name}</span>
-              {item.isCombo && item.comboItems?.length && (
-                <span className="combo-contents">{item.comboItems.join(' + ')}</span>
-              )}
-              {item.variants?.length ? (
-                expandedTile === item._id ? (
-                  <span className="variant-row">
-                    {item.variants.map((v) => (
-                      <button
-                        key={v.name}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          pickVariant(item, v.name, v.price);
-                        }}
-                      >
-                        {v.name} ${v.price.toFixed(2)}
-                      </button>
-                    ))}
+          {visibleItems.map((item) => {
+            const comboSeparateTotal = item.isCombo && item.comboItems?.length
+              ? comboItemsTotal(item.comboItems, menu)
+              : 0;
+            return (
+              <div
+                className="item-tile"
+                key={item._id}
+                role="button"
+                tabIndex={0}
+                onClick={() => tapTile(item)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && tapTile(item)}
+              >
+                {item.image && <img className="item-tile-image" src={item.image} alt="" />}
+                <span className="name">{item.name}</span>
+                {item.isCombo && !!item.comboItems?.length && (
+                  <span className="combo-contents">{item.comboItems.map(formatComboEntry).join(' + ')}</span>
+                )}
+                {item.variants?.length ? (
+                  expandedTile === item._id ? (
+                    <span className="variant-row">
+                      {item.variants.map((v) => (
+                        <button
+                          key={v.name}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            pickVariant(item, v.name, v.price);
+                          }}
+                        >
+                          {v.name} ${v.price.toFixed(2)}
+                        </button>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="price num">from ${Math.min(...item.variants.map((v) => v.price)).toFixed(2)}</span>
+                  )
+                ) : comboSeparateTotal > item.price ? (
+                  <span className="price num combo-price">
+                    <span className="combo-strike">${comboSeparateTotal.toFixed(2)}</span>
+                    ${item.price.toFixed(2)}
                   </span>
                 ) : (
-                  <span className="price num">from ${Math.min(...item.variants.map((v) => v.price)).toFixed(2)}</span>
-                )
-              ) : (
-                <span className="price num">${item.price.toFixed(2)}</span>
-              )}
-            </div>
-          ))}
+                  <span className="price num">${item.price.toFixed(2)}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

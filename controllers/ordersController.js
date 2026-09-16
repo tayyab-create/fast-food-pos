@@ -19,7 +19,8 @@ function resolveItem(rawItem, menu) {
   const exact = menu.find((m) => m.name === name && !m.variants?.length);
   if (exact) {
     if (exact.available === false) return { error: `"${name}" is currently unavailable` };
-    return { item: buildItem(name, exact.price, qty, exact.isCombo ? exact.comboItems : undefined, rawItem?.note) };
+    const comboItems = exact.isCombo ? exact.comboItems?.map(formatComboEntry) : undefined;
+    return { item: buildItem(name, exact.price, qty, comboItems, rawItem?.note) };
   }
 
   // Otherwise try "Base (Variant)" — how the Cashier names variant cart lines.
@@ -35,6 +36,12 @@ function resolveItem(rawItem, menu) {
   }
 
   return { error: `Unknown menu item "${name}"` };
+}
+
+// Formats a MenuItem combo entry { name, qty } into the display string an
+// order's item.comboItems snapshot stores (e.g. "2x Cheeseburger").
+function formatComboEntry(entry) {
+  return entry.qty > 1 ? `${entry.qty}× ${entry.name}` : entry.name;
 }
 
 function buildItem(name, price, qty, comboItems, note) {
@@ -107,6 +114,7 @@ async function create(req, res) {
   const order = await Order.create({
     items, subtotal, discount, total, orderNumber, urgent, note, paymentMethod, orderType,
     amountTendered: paymentMethod === 'cash' ? amountTendered : undefined,
+    statusHistory: [{ status: 'pending' }],
   });
   res.status(201).json(order);
 }
@@ -121,7 +129,11 @@ async function updateStatus(req, res) {
   if (!STATUSES.includes(req.body.status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
-  const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { returnDocument: 'after' });
+  const order = await Order.findByIdAndUpdate(
+    req.params.id,
+    { status: req.body.status, $push: { statusHistory: { status: req.body.status } } },
+    { returnDocument: 'after' }
+  );
   if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json(order);
 }
