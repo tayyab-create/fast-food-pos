@@ -34,10 +34,13 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose, voiding]);
 
+  // Circle draws itself in, then the check strokes in right after it closes —
+  // the familiar "approved" sequence. Pure CSS (stroke-dasharray/-dashoffset
+  // keyed to each path's own length), off entirely under reduced motion.
   const lead = confirmed ? (
     <svg className="confirm-check" width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <circle cx="20" cy="20" r="18" stroke="var(--forest)" strokeWidth="1.5" />
-      <path d="M12 20.5l5.5 5.5L28 14" stroke="var(--forest)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle className="confirm-check-circle" cx="20" cy="20" r="18" stroke="var(--forest)" strokeWidth="1.5" pathLength={100} />
+      <path className="confirm-check-mark" d="M12 20.5l5.5 5.5L28 14" stroke="var(--forest)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={100} />
     </svg>
   ) : undefined;
 

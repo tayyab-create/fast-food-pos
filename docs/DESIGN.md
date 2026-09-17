@@ -178,12 +178,18 @@ stays about architecture and data shapes.
   "Mark urgent" toggle side by side (status in the header, control in the
   options row, so neither competes with the other). Above the cart lines is
   a Dine-in/Takeout/Delivery order-type toggle (Dine-in by default) above the
-  cart lines (qty, name, line total, remove, optional per-item note), a
+  cart lines (qty, name, line total, remove, optional per-item note) —
+  adding a genuinely new line (not a qty bump on one already in the cart)
+  smooth-scrolls the list down to it, so it's never left hidden below the
+  fold once the list is tall enough to scroll — a
   collapsed "⋯ More" panel (a dot badge shows when something inside is set)
   holding the less-common per-order options — an order note and a
   Percent/Flat discount with an optional reason label — and a
   Subtotal → Discount → Total block (Total as the one inverted/emphasized
-  row). Checkout is a single "Pay" button that opens a payment modal with an
+  row, filled `--forest-dark`). Checkout is "Hold order" (disabled on an
+  empty cart) and "Pay" — filled `--ink` rather than the same green as the
+  Total row directly above it, so the two don't read as one merged block —
+  which opens a payment modal with an
   amount-due display (set in the display serif, the one place outside a page
   title it appears) and Cash/Card tabs — Cash shows an amount-tendered field
   with an "Exact" shortcut and live change-due readout (gated on tendering
@@ -192,7 +198,10 @@ stays about architecture and data shapes.
   rather than picking it inline. A rejected order (e.g. an item 86'd since it
   was added) is shown inside the modal and the cart is kept. Held orders keep
   every cart field including order type. Menu items marked unavailable
-  (`available: false`) are hidden from the tile grid entirely.
+  (`available: false`) are hidden from the tile grid entirely. On success,
+  `OrderDetailModal`'s `confirmed` view draws its checkmark in — the circle
+  strokes itself closed, then the check strokes in right after — rather than
+  appearing as a static icon.
 - **Kitchen (`/kitchen`)**: a search bar, Pending/Preparing/Ready column
   toggles, and a multi-select order-type filter, then a board of the visible
   columns (hiding a column lets the rest expand to fill the page). Orders
@@ -306,6 +315,15 @@ first.
   in view rather than the whole dialog scrolling and pushing the confirm
   button off-screen. Used for deleting a menu item (single or, from the
   bulk toolbar, several at once) and discarding a held order.
+- **`BusyOverlay`** (`components/BusyOverlay.tsx`) — a translucent veil with
+  a spinner (and optional label) over its positioned ancestor, blocking
+  every click/keystroke underneath — not just the button that started the
+  action — until it clears. Takes `{ active, label? }`; the caller gives
+  its ancestor `position: relative`. For an action that touches several
+  rows at once (Menu's bulk toolbar, including the bulk-delete confirm's
+  own `await`) so nothing else on the page can be clicked mid-write; a
+  single-item action's own button disabling (a spinner + `disabled`) is
+  usually enough on its own and doesn't need this.
 - **`ToastProvider` / `useToast()`** (`components/Toast.tsx`) — outcome
   messages. `toast('Saved')` or `toast('Failed', { kind: 'error' })`, with
   an optional `action: { label: 'Undo', onClick }`. One toast at a time,

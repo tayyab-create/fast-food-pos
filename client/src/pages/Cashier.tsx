@@ -71,6 +71,10 @@ export function Cashier() {
   const [openNoteFor, setOpenNoteFor] = useState<string | null>(null);
 
   const [cart, setCart] = useState<OrderItem[]>(EMPTY_CART.cart);
+  /** Name of the line most recently added (not a qty bump) — scrolled into
+   * view once, then cleared, so re-renders don't keep re-scrolling. */
+  const lastAddedRef = useRef<string | null>(null);
+  const cartLinesRef = useRef<HTMLDivElement>(null);
   const [discountType, setDiscountType] = useState(EMPTY_CART.discountType);
   const [discountValue, setDiscountValue] = useState(EMPTY_CART.discountValue);
   const [discountReason, setDiscountReason] = useState(EMPTY_CART.discountReason);
@@ -95,6 +99,16 @@ export function Cashier() {
   useEffect(() => {
     localStorage.setItem(HELD_ORDERS_KEY, JSON.stringify(heldOrders));
   }, [heldOrders]);
+
+  // After a new line renders, glide the (possibly now-scrolled) cart list
+  // down to it, so adding an item never leaves it hidden below the fold.
+  useEffect(() => {
+    if (!lastAddedRef.current) return;
+    const name = lastAddedRef.current;
+    lastAddedRef.current = null;
+    const row = cartLinesRef.current?.querySelector<HTMLElement>(`[data-line="${CSS.escape(name)}"]`);
+    row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [cart]);
 
   function applyCartState(state: CartState) {
     setCart(state.cart);
@@ -125,6 +139,8 @@ export function Cashier() {
       if (existing) {
         return prev.map((i) => (i.name === name ? { ...i, qty: i.qty + 1 } : i));
       }
+      // A genuinely new line, not a qty bump on one already in view — scroll to it.
+      lastAddedRef.current = name;
       return [...prev, { name, price, qty: 1, comboItems }];
     });
   }
@@ -377,10 +393,10 @@ export function Cashier() {
           ))}
         </div>
 
-        <div className="ledger-lines">
+        <div className="ledger-lines" ref={cartLinesRef}>
           {cart.length === 0 && <p className="empty">Tap a menu item to start an order.</p>}
           {cart.map((line) => (
-            <div className="ledger-line" key={line.name}>
+            <div className="ledger-line" key={line.name} data-line={line.name}>
               <div className="ledger-line-row">
                 <span className="qty-controls">
                   <button type="button" className="icon" aria-label={`Decrease ${line.name}`} onClick={() => changeQty(line.name, -1)}>−</button>
@@ -455,7 +471,7 @@ export function Cashier() {
           <button type="button" className="ghost" disabled={cart.length === 0} onClick={holdOrder}>
             Hold order
           </button>
-          <button type="button" className="primary" style={{ flex: 1 }} disabled={!canPay} onClick={() => setShowPay(true)}>
+          <button type="button" className="primary pay-cta" style={{ flex: 1 }} disabled={!canPay} onClick={() => setShowPay(true)}>
             Pay
           </button>
         </div>

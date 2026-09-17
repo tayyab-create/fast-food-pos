@@ -14,6 +14,7 @@ import { getLabels } from '../api/labels';
 import { getRecentSales } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { ActionMenu, ActionMenuInlineForm } from '../components/ActionMenu';
+import { BusyOverlay } from '../components/BusyOverlay';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
 import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
@@ -186,12 +187,21 @@ export function Menu() {
   }
 
   async function bulkDelete(targets: MenuItem[]) {
+    // ConfirmModal already disables its own buttons and shows a spinner
+    // (submitting) while its onConfirm runs; this also blocks the page
+    // behind it, since a 30+ item delete can take a moment and the rest of
+    // the screen is otherwise still clickable during that window.
+    setBulkBusy(true);
     let failed = 0;
-    await Promise.all(targets.map((item) => deleteMenuItem(item._id).catch(() => { failed += 1; })));
-    clearSelection();
-    await load();
-    if (failed > 0) toast(`${failed} item${failed > 1 ? 's' : ''} could not be deleted`, { kind: 'error' });
-    else toast(`${targets.length} item${targets.length > 1 ? 's' : ''} deleted`);
+    try {
+      await Promise.all(targets.map((item) => deleteMenuItem(item._id).catch(() => { failed += 1; })));
+      clearSelection();
+      await load();
+      if (failed > 0) toast(`${failed} item${failed > 1 ? 's' : ''} could not be deleted`, { kind: 'error' });
+      else toast(`${targets.length} item${targets.length > 1 ? 's' : ''} deleted`);
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   const [duplicating, setDuplicating] = useState<string | null>(null);
@@ -467,6 +477,7 @@ export function Menu() {
 
   return (
     <div className="pos-layout menu-layout">
+      <BusyOverlay active={bulkBusy} label="Updating…" />
       <div className="pos-menu">
         <div className="list-header">
           <div className="section-header">Menu items</div>

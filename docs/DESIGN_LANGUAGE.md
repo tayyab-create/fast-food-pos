@@ -99,6 +99,13 @@ one focused.
   pure `--ink`/black for this emphasis — forest green is the app's only
   accent color, so the loud element stays inside the established palette
   instead of introducing a second one.
+  - Exception, deliberately: the Cashier's "Pay" button sits directly under
+    that same forest-green Total row, so giving it the identical fill would
+    read as one merged green block rather than two distinct actions. It uses
+    `--ink` instead (already listed above as an "emphasis fill", not a new
+    color) — still within the palette, just the app's *other* strong
+    neutral, reserved for this one case where two emphasis elements would
+    otherwise collide.
 
 ## Components & interaction
 

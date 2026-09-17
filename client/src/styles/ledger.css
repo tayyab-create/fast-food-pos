@@ -85,6 +85,7 @@ main {
   padding: 28px;
 }
 main.wide { max-width: 1320px; }
+.menu-layout { position: relative; }
 .menu-layout .pos-menu { flex: 4; }
 
 /* Section header: small-caps label + hairline extending to the right */
@@ -628,6 +629,11 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .discount-unit { color: var(--muted); font-family: var(--font-num); font-size: 13px; flex-shrink: 0; }
 
 .checkout-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+/* Pay sits directly under the forest-green Total bar — give it the app's
+   other strong neutral (ink) instead of doubling the same green, so the
+   two don't read as one merged block. */
+.pay-cta { background: var(--ink); border-color: var(--ink); }
+.pay-cta:hover { background: #14211b; border-color: #14211b; }
 
 .held-orders {
   display: flex;
@@ -678,6 +684,26 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   max-height: calc(100vh - 40px);
 }
 .order-confirm-modal .confirm-check { margin-bottom: 14px; flex-shrink: 0; align-self: center; }
+.confirm-check-circle {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  transform-origin: center;
+  animation: confirm-circle-draw 380ms ease-out forwards;
+}
+.confirm-check-mark {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: confirm-mark-draw 260ms ease-out 340ms forwards;
+}
+@keyframes confirm-circle-draw {
+  from { stroke-dashoffset: 100; transform: scale(0.8); opacity: 0; }
+  60% { opacity: 1; }
+  to { stroke-dashoffset: 0; transform: scale(1); opacity: 1; }
+}
+@keyframes confirm-mark-draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .confirm-check-circle, .confirm-check-mark { animation: none; stroke-dashoffset: 0; }
+}
 
 /* Shared dialog header: title, optional extra (status pill), × on the right */
 .modal-header {
@@ -1832,3 +1858,22 @@ button:not(:disabled):active { transform: translateY(1px); }
   font-size: 10.5px;
   white-space: nowrap;
 }
+
+/* BusyOverlay — blocks interaction with a page/panel while an action that
+   would be unsafe to interrupt (a bulk write, a multi-item delete) is in
+   flight. The caller gives its ancestor position: relative. */
+.busy-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(243, 245, 241, 0.72);
+  cursor: wait;
+  animation: fade-in 120ms ease-out;
+}
+.busy-overlay-label { font-size: 12.5px; color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .busy-overlay { animation: none; } }
