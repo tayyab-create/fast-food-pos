@@ -14,16 +14,19 @@ routes/                 Express Routers — HTTP verbs/paths only, no business l
   orders.js             /api/orders
   reports.js            /api/reports
   labels.js             /api/labels/:kind — categories and tags as records of their own
+  settings.js           /api/settings — the one app-wide config document
 controllers/            Business logic + Mongoose queries, one per resource
   menuController.js      Also handles image upload/removal (sharp resize + compress)
   ordersController.js
   reportsController.js
   labelsController.js    Category/tag list, add, rename (propagates to items), delete
+  settingsController.js  Get/update the singleton Settings doc (upserts on first read)
 models/                 Mongoose schemas
   MenuItem.js
   Order.js
   Counter.js             Atomic sequence counters (orderNumber)
   Label.js               { kind: 'category' | 'tag', name } — unique per kind; outlives the items that use it
+  Settings.js            One document (_id: 'app') — app-wide config, currently just pageSizeOptions
 uploads/                Compressed product images, served at /uploads (gitignored, runtime-only)
 seed.js                 Populates sample menu items
 client/                 Vite + React + TypeScript SPA
@@ -52,9 +55,10 @@ client/                 Vite + React + TypeScript SPA
     hooks/
       useDismissable.ts       Close-on-outside-click/Escape, shared by every popup component
       useFlipUp.ts            Opens a popup upward when it wouldn't fit below (every dropdown, combobox, tag list, calendar)
+      usePageSizeOptions.ts   Fetches Settings.pageSizeOptions once; every LedgerTable's "Rows:" choices come from here
     api/
       client.ts               fetch wrapper (base URL, JSON, error handling)
-      menu.ts, orders.ts, reports.ts, labels.ts   Typed functions per resource
+      menu.ts, orders.ts, reports.ts, labels.ts, settings.ts   Typed functions per resource
     types.ts                  Shared TS interfaces (mirror backend shapes)
     comboFormat.ts             Resolves combo entries against the loaded catalog: display labels
                                ("2× Fries (Large)"), unit prices, and the bought-separately sum.
@@ -98,6 +102,18 @@ new name is written onto every item that had the old one) or delete
 deleted; a deleted tag is pulled off every item). The Menu form's category
 and tag suggestions come from these records, so an unused label can still
 be picked.
+
+### Settings
+```
+{ _id: 'app', pageSizeOptions: number[] }   // one document; upserted with defaults on first read
+```
+App-wide config, currently just the "Rows:" choices every paginated
+`LedgerTable` offers alongside its own hardcoded default of 10 (a table's
+default page size is a client constant, not stored here — this only
+customises what else the picker offers). Edited from the Settings page's
+Pagination section; the client's `usePageSizeOptions()` hook fetches it
+once and falls back to `[10, 25, 50]` if the request fails, so a table
+never blocks its own render on this.
 
 ### Order
 ```
@@ -153,6 +169,8 @@ be picked.
 | POST   | /api/labels/:kind | { name } (≤40 chars for a category, ≤16 for a tag; 409 if it exists) | Label (201) |
 | PUT    | /api/labels/:kind/:id | { name } — renames and updates every item using it | Label |
 | DELETE | /api/labels/:kind/:id | — (category: items move to "Other"; tag: pulled off items) | 204 |
+| GET    | /api/settings     | —                                       | AppSettings — the singleton config doc, upserted with defaults on first read |
+| PUT    | /api/settings     | { pageSizeOptions: number[] } (1–8 distinct whole numbers, 1–500 each) | AppSettings — sorted ascending and saved |
 | GET    | /api/reports/summary | `?from=YYYY-MM-DD&to=YYYY-MM-DD` (both optional, inclusive local days; neither = all time; malformed → 400) | { orderCount, revenue, avgOrder, discountTotal, voidedCount, voidedTotal, topItems: [{name, qty}], items: [{name, qty, revenue, orders, orderShare}], byPaymentMethod, byOrderType, byHour[24], byWeekday[7], byDay: [{date, count, revenue}], cashTendered, changeGiven, comboShare, discountsByReason: [{reason, count, amount}], voids: [{_id, orderNumber, total, reason, at}] } — voided orders are excluded from every revenue figure and counted separately; the client fetches the same-length range before `from` a second time to show period-over-period deltas |
 | GET    | /api/reports/popular | —                                    | string[] — names of the 5 best-selling items over the last 7 days (the Cashier's "Popular" badge) |
 | GET    | /api/reports/recent-sales | —                               | { [itemName]: qty } — quantity sold per item name over the last 7 days (Menu's Sales (7d) column) |
@@ -181,7 +199,13 @@ stays about architecture and data shapes.
   cart lines (qty, name, line total, remove, optional per-item note) —
   adding a genuinely new line (not a qty bump on one already in the cart)
   smooth-scrolls the list down to it, so it's never left hidden below the
-  fold once the list is tall enough to scroll — a
+  fold once the list is tall enough to scroll. `scrollbar-gutter: stable`
+  on the cart's own scroll container reserves the scrollbar's width whether
+  or not it's currently needed, so it never appears/disappears with a
+  visible content shift as lines are added or removed — a
+  collapsed "⋯ More" panel (a dot badge shows when something inside is set)
+  holding the less-common per-order options — an order note and a
+  Percent/Flat discount with an optional reason label — and a
   collapsed "⋯ More" panel (a dot badge shows when something inside is set)
   holding the less-common per-order options — an order note and a
   Percent/Flat discount with an optional reason label — and a
@@ -238,6 +262,9 @@ stays about architecture and data shapes.
   with an add field, a usage count per row ("unused" when zero), Rename
   (edits in place; Enter saves, Escape cancels) and Delete (via
   `ConfirmModal`, stating what happens to the items). See the Label model.
+  A third section, Pagination, edits the app-wide `Settings.pageSizeOptions`
+  list as removable chips (an add field, each chip's × removes it, min one
+  required) — the choices offered in every table's "Rows:" picker app-wide.
 - **Menu (`/menu`)**: a search bar + multi-select Category, Status
   (Available/86'd/Pinned — an item matches if any chosen flag applies), Kind
   (Single/Sizes/Combo) and Tag filters, with the active ones listed as
@@ -314,7 +341,12 @@ first.
   that list scrolls internally — the title, warning and buttons stay fixed
   in view rather than the whole dialog scrolling and pushing the confirm
   button off-screen. Used for deleting a menu item (single or, from the
-  bulk toolbar, several at once) and discarding a held order.
+  bulk toolbar, several at once) and discarding a held order — also gates
+  every non-destructive bulk action (mark available/86'd, pin/unpin) before
+  it touches the selection, since a mis-click across many items at once is
+  a bigger deal than on a single row; the category/tag bulk actions skip a
+  second confirm because typing a value and hitting the inline form's own
+  Apply/Add is already a deliberate step.
 - **`BusyOverlay`** (`components/BusyOverlay.tsx`) — a translucent veil with
   a spinner (and optional label) over its positioned ancestor, blocking
   every click/keystroke underneath — not just the button that started the
@@ -441,7 +473,20 @@ first.
   modal opened from inside another closes alone). `closeDisabled` blocks all
   three while a request is in flight; `lead`/`headerExtra` slot content above
   the title or beside it (the checkout tick, a status pill). Don't hand-roll
-  an overlay — wrap content in this.
+  an overlay — wrap content in this. Closing is soft, not instant: every
+  close path plays a short fade/settle-down (`.leaving`, ~150ms, skipped
+  under reduced motion) and only calls the `onClose` prop — which unmounts
+  the component — once that finishes, so nothing just vanishes mid-frame.
+  A Cancel/"Keep it"/success-path button *inside* a modal's own content
+  must go through the same fade rather than calling `onClose` directly —
+  `ModalBody` (same file) is how: `<ModalBody>{(requestClose) => (...)}
+  </ModalBody>`, using `requestClose` in place of the raw prop for any
+  button that dismisses the dialog. (`useModalClose()` is the hook behind
+  it, callable only from something actually rendered inside a `<Modal>`;
+  `ModalBody` exists because a modal's own top-level function body runs
+  before its `<Modal>` JSX exists to provide that context.) Every modal in
+  the app follows this — check any new one against `ConfirmModal`/
+  `PayModal`/`VoidOrderModal`/`OrderDetailModal` for the pattern.
 - **`VoidOrderModal`** (`components/VoidOrderModal.tsx`) — confirms a void
   and captures a required reason, which the API stores as `voidReason` and on
   the `voided` status-history entry. Used by Kitchen tickets and

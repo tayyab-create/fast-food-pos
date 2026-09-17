@@ -520,6 +520,10 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Reserve the scrollbar's width whether or not it's currently needed, so
+     it never appears/disappears with a visible content shift as lines are
+     added or removed — the flash the scrollbar-toggle otherwise causes. */
+  scrollbar-gutter: stable;
   padding: 0 4px 0 3px;
   margin: 0 -4px 0 -3px;
 }
@@ -631,9 +635,11 @@ table.ledger tbody tr.selected { background: var(--forest-tint); }
 .checkout-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 /* Pay sits directly under the forest-green Total bar — give it the app's
    other strong neutral (ink) instead of doubling the same green, so the
-   two don't read as one merged block. */
-.pay-cta { background: var(--ink); border-color: var(--ink); }
-.pay-cta:hover { background: #14211b; border-color: #14211b; }
+   two don't read as one merged block. Specificity must match/beat
+   button.primary (0,1,1), or that rule's background/border wins regardless
+   of source order — a plain .pay-cta (0,1,0) silently lost to it before. */
+.pay-cta.pay-cta { background: var(--ink); border-color: var(--ink); }
+.pay-cta.pay-cta:hover { background: #14211b; border-color: #14211b; }
 
 .held-orders {
   display: flex;
@@ -1662,6 +1668,11 @@ table.ledger td .skeleton { margin: 3px 0; }
 /* Motion — short, purposeful, and off under prefers-reduced-motion */
 .modal-overlay { animation: fade-in 150ms ease-out; }
 .modal { animation: rise-in 150ms ease-out; }
+/* Soft dismissal: the reverse of the entry, same 150ms Modal.tsx waits on
+   before actually unmounting (EXIT_MS) — a popup settles back down and
+   fades rather than vanishing on the frame the close is requested. */
+.modal-overlay.leaving { animation: fade-out 150ms ease-in forwards; }
+.modal.leaving { animation: settle-out 150ms ease-in forwards; }
 .ledger-line { animation: rise-in 150ms ease-out; }
 .filter-chip { animation: rise-in 120ms ease-out; }
 .ticket { transition: opacity 160ms ease-in, transform 160ms ease-in; }
@@ -1671,10 +1682,12 @@ button { transition: background 0.1s, border-color 0.1s, color 0.1s, transform 0
 button:not(:disabled):active { transform: translateY(1px); }
 .spinner { transition: none; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes settle-out { to { opacity: 0; transform: translateY(6px); } }
 @keyframes tint-flash { from { color: #cfe3d5; } to { color: white; } }
 @media (prefers-reduced-motion: reduce) {
-  .modal-overlay, .modal, .ledger-line, .filter-chip, .total-amount { animation: none; }
+  .modal-overlay, .modal, .modal-overlay.leaving, .modal.leaving, .ledger-line, .filter-chip, .total-amount { animation: none; }
   .ticket { transition: none; }
   button { transition: none; }
   button:not(:disabled):active { transform: none; }

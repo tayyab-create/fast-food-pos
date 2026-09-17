@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isMoneyInput } from '../money';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import type { PaymentMethod } from '../types';
 
 interface PayModalProps {
@@ -52,68 +52,74 @@ export function PayModal({ total, onConfirm, onClose }: PayModalProps) {
 
   return (
     <Modal title="Take payment" className="pay-modal" onClose={onClose} closeDisabled={submitting}>
-      <div className="pay-total-display">
-        <span>Amount due</span>
-        <span className="pay-total-amount">${total.toFixed(2)}</span>
-      </div>
+      <ModalBody>
+        {(requestClose) => (
+          <>
+            <div className="pay-total-display">
+              <span>Amount due</span>
+              <span className="pay-total-amount">${total.toFixed(2)}</span>
+            </div>
 
-      <div className="pay-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={method === 'cash'} className={method === 'cash' ? 'active' : ''} onClick={() => setMethod('cash')}>
-          Cash
-        </button>
-        <button type="button" role="tab" aria-selected={method === 'card'} className={method === 'card' ? 'active' : ''} onClick={() => setMethod('card')}>
-          Card
-        </button>
-      </div>
+            <div className="pay-tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={method === 'cash'} className={method === 'cash' ? 'active' : ''} onClick={() => setMethod('cash')}>
+                Cash
+              </button>
+              <button type="button" role="tab" aria-selected={method === 'card'} className={method === 'card' ? 'active' : ''} onClick={() => setMethod('card')}>
+                Card
+              </button>
+            </div>
 
-      {method === 'cash' ? (
-        <div className="pay-cash-section">
-          <div className="pay-tender-row">
-            <span className="pay-amount-field">
-              <span className="discount-unit">$</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="num"
-                autoFocus
-                placeholder="0.00"
-                aria-label="Amount tendered"
-                value={tenderedStr}
-                disabled={submitting}
-                onChange={(e) => isMoneyInput(e.target.value) && setTenderedStr(e.target.value)}
-              />
-            </span>
-            <button
-              type="button"
-              className="ghost"
-              disabled={submitting}
-              title="Customer paid the exact amount"
-              onClick={() => setTenderedStr(total.toFixed(2))}
-            >
-              Exact
-            </button>
-          </div>
-          <div className={`pay-change-row${tenderedStr ? (cashReady ? ' positive' : ' negative') : ''}`}>
-            <span>Change due</span>
-            <span className="num">${tenderedStr ? Math.max(0, changeDue).toFixed(2) : '0.00'}</span>
-          </div>
-          <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
-            {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
-          </button>
-        </div>
-      ) : (
-        <div className="pay-card-section">
-          <p className="hint">Process the card on the terminal, then confirm here.</p>
-          <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
-            {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
-          </button>
-        </div>
-      )}
+            {method === 'cash' ? (
+              <div className="pay-cash-section">
+                <div className="pay-tender-row">
+                  <span className="pay-amount-field">
+                    <span className="discount-unit">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="num"
+                      autoFocus
+                      placeholder="0.00"
+                      aria-label="Amount tendered"
+                      value={tenderedStr}
+                      disabled={submitting}
+                      onChange={(e) => isMoneyInput(e.target.value) && setTenderedStr(e.target.value)}
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={submitting}
+                    title="Customer paid the exact amount"
+                    onClick={() => setTenderedStr(total.toFixed(2))}
+                  >
+                    Exact
+                  </button>
+                </div>
+                <div className={`pay-change-row${tenderedStr ? (cashReady ? ' positive' : ' negative') : ''}`}>
+                  <span>Change due</span>
+                  <span className="num">${tenderedStr ? Math.max(0, changeDue).toFixed(2) : '0.00'}</span>
+                </div>
+                <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
+                  {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
+                </button>
+              </div>
+            ) : (
+              <div className="pay-card-section">
+                <p className="hint">Process the card on the terminal, then confirm here.</p>
+                <button type="button" className="primary" disabled={!canConfirm} onClick={confirm}>
+                  {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Placing order…' : 'Confirm payment'}
+                </button>
+              </div>
+            )}
 
-      {error && <p className="field-error" role="alert">{error}</p>}
+            {error && <p className="field-error" role="alert">{error}</p>}
 
-      <button type="button" className="ghost" disabled={submitting} onClick={onClose}>Cancel</button>
+            <button type="button" className="ghost" disabled={submitting} onClick={requestClose}>Cancel</button>
+          </>
+        )}
+      </ModalBody>
     </Modal>
   );
 }

@@ -7,6 +7,7 @@ const menuRouter = require('./routes/menu');
 const ordersRouter = require('./routes/orders');
 const reportsRouter = require('./routes/reports');
 const labelsRouter = require('./routes/labels');
+const settingsRouter = require('./routes/settings');
 
 const app = express();
 app.use(express.json());
@@ -19,6 +20,7 @@ app.use('/api/menu', menuRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/labels', labelsRouter);
+app.use('/api/settings', settingsRouter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

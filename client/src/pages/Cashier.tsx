@@ -6,7 +6,7 @@ import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { isMoneyInput, roundMoney } from '../money';
 import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
 import { ItemImage } from '../components/ItemImage';
-import { Modal } from '../components/Modal';
+import { Modal, ModalBody } from '../components/Modal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { PayModal } from '../components/PayModal';
 import { useToast } from '../components/Toast';
@@ -479,66 +479,72 @@ export function Cashier() {
 
       {showMore && (
         <Modal title="More options" className="more-modal" onClose={() => setShowMore(false)}>
-          <input
-            className="order-note-input"
-            placeholder="Order note (e.g. customer waiting outside)"
-            aria-label="Order note"
-            value={orderNote}
-            onChange={(e) => setOrderNote(e.target.value)}
-          />
-
-          <div className="discount-block">
-            <div className="section-header">Discount</div>
-            <div className="option-row" role="group" aria-label="Discount type">
-              <button
-                type="button"
-                className={discountType === 'percent' ? 'active' : ''}
-                aria-pressed={discountType === 'percent'}
-                onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
-              >
-                Percent
-              </button>
-              <button
-                type="button"
-                className={discountType === 'flat' ? 'active' : ''}
-                aria-pressed={discountType === 'flat'}
-                onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
-              >
-                Flat $
-              </button>
-            </div>
-            {discountType && (
-              <div className="discount-value">
-                <span className={`discount-unit-field${discountError ? ' invalid' : ''}`}>
-                  {discountType === 'flat' && <span className="discount-unit">$</span>}
-                  <input
-                    type="number"
-                    min="0"
-                    max={discountType === 'percent' ? 100 : undefined}
-                    className="num"
-                    autoFocus
-                    aria-label="Discount amount"
-                    placeholder={discountType === 'percent' ? '10' : '5.00'}
-                    value={discountValue}
-                    onChange={(e) => isMoneyInput(e.target.value) && setDiscountValue(e.target.value)}
-                  />
-                  {discountType === 'percent' && <span className="discount-unit">%</span>}
-                </span>
+          <ModalBody>
+            {(requestClose) => (
+              <>
                 <input
-                  className="discount-reason-input"
-                  placeholder="Reason (e.g. staff discount)"
-                  aria-label="Discount reason"
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
+                  className="order-note-input"
+                  placeholder="Order note (e.g. customer waiting outside)"
+                  aria-label="Order note"
+                  value={orderNote}
+                  onChange={(e) => setOrderNote(e.target.value)}
                 />
-              </div>
-            )}
-            {discountError && <p className="field-error">{discountError}</p>}
-          </div>
 
-          <button type="button" className="primary" style={{ marginTop: 14, width: '100%' }} onClick={() => setShowMore(false)}>
-            Done
-          </button>
+                <div className="discount-block">
+                  <div className="section-header">Discount</div>
+                  <div className="option-row" role="group" aria-label="Discount type">
+                    <button
+                      type="button"
+                      className={discountType === 'percent' ? 'active' : ''}
+                      aria-pressed={discountType === 'percent'}
+                      onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
+                    >
+                      Percent
+                    </button>
+                    <button
+                      type="button"
+                      className={discountType === 'flat' ? 'active' : ''}
+                      aria-pressed={discountType === 'flat'}
+                      onClick={() => setDiscountType(discountType === 'flat' ? null : 'flat')}
+                    >
+                      Flat $
+                    </button>
+                  </div>
+                  {discountType && (
+                    <div className="discount-value">
+                      <span className={`discount-unit-field${discountError ? ' invalid' : ''}`}>
+                        {discountType === 'flat' && <span className="discount-unit">$</span>}
+                        <input
+                          type="number"
+                          min="0"
+                          max={discountType === 'percent' ? 100 : undefined}
+                          className="num"
+                          autoFocus
+                          aria-label="Discount amount"
+                          placeholder={discountType === 'percent' ? '10' : '5.00'}
+                          value={discountValue}
+                          onChange={(e) => isMoneyInput(e.target.value) && setDiscountValue(e.target.value)}
+                        />
+                        {discountType === 'percent' && <span className="discount-unit">%</span>}
+                      </span>
+                      <input
+                        className="discount-reason-input"
+                        placeholder="Reason (e.g. staff discount)"
+                        aria-label="Discount reason"
+                        value={discountReason}
+                        onChange={(e) => setDiscountReason(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  {discountError && <p className="field-error">{discountError}</p>}
+                </div>
+
+                <button type="button" className="primary" style={{ marginTop: 14, width: '100%' }} onClick={requestClose}>
+                  Done
+                </button>
+              </>
+            )}
+          </ModalBody>
         </Modal>
       )}
 

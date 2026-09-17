@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 
 interface ConfirmModalProps {
   /** A question, e.g. "Delete Cheeseburger?" */
@@ -34,12 +34,16 @@ export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Canc
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function confirm() {
+  // Note: this can't call useModalClose() — that reads the Modal rendered
+  // by the JSX below, which doesn't exist until after this function body
+  // runs. ModalBody (defined once, below) is the pattern every consumer
+  // that needs its own soft-close (Cancel, a success path) follows instead.
+  async function confirm(requestClose: () => void) {
     setSubmitting(true);
     setError(null);
     try {
       await onConfirm();
-      onClose();
+      requestClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setSubmitting(false);
@@ -48,15 +52,21 @@ export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Canc
 
   return (
     <Modal title={title} className="confirm-modal" onClose={onClose} closeDisabled={submitting}>
-      <div className="confirm-message">{message}</div>
-      {error && <p className="field-error" role="alert">{error}</p>}
-      <div className="checkout-row">
-        <button type="button" className="ghost" autoFocus disabled={submitting} onClick={onClose}>{cancelLabel}</button>
-        <button type="button" className={`primary${danger ? ' danger' : ''}`} style={{ flex: 1 }} disabled={submitting} onClick={confirm}>
-          {submitting && <span className="spinner" aria-hidden="true" />}
-          {confirmLabel}
-        </button>
-      </div>
+      <ModalBody>
+        {(requestClose) => (
+          <>
+            <div className="confirm-message">{message}</div>
+            {error && <p className="field-error" role="alert">{error}</p>}
+            <div className="checkout-row">
+              <button type="button" className="ghost" autoFocus disabled={submitting} onClick={requestClose}>{cancelLabel}</button>
+              <button type="button" className={`primary${danger ? ' danger' : ''}`} style={{ flex: 1 }} disabled={submitting} onClick={() => confirm(requestClose)}>
+                {submitting && <span className="spinner" aria-hidden="true" />}
+                {confirmLabel}
+              </button>
+            </div>
+          </>
+        )}
+      </ModalBody>
     </Modal>
   );
 }

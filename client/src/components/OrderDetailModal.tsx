@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import { VoidOrderModal } from './VoidOrderModal';
 import type { Order } from '../types';
 
@@ -22,18 +22,6 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
   // value, so it can never disagree with `total` by a rounding cent.
   const discountAmount = order.discount ? order.subtotal - order.total : 0;
 
-  useEffect(() => {
-    if (voiding) return;
-    // Enter closes, except when focus is on a button — it already handles its
-    // own Enter via a native click (would otherwise double-fire on Void/Close).
-    // Escape is handled by Modal.
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose, voiding]);
-
   // Circle draws itself in, then the check strokes in right after it closes —
   // the familiar "approved" sequence. Pure CSS (stroke-dasharray/-dashoffset
   // keyed to each path's own length), off entirely under reduced motion.
@@ -52,117 +40,140 @@ export function OrderDetailModal({ order, onClose, confirmed, closeLabel = 'Clos
       lead={lead}
       headerExtra={confirmed ? undefined : <span className={`status-pill ${order.status}`}>{order.status}</span>}
     >
-      <div className="list-header">
-        <div className="section-header">Items</div>
-        <span className="order-summary">
-          {itemCount} item{itemCount !== 1 ? 's' : ''}
-        </span>
-      </div>
-      <ul className="order-confirm-items">
-        {order.items.map((item, i) => (
-          <li key={i}>
-            <span className="num">{item.qty}×</span>
-            <span className="name">
-              {item.name}
-              {item.note && <span className="muted-text"> — {item.note}</span>}
-            </span>
-            <span className="num">${(item.price * item.qty).toFixed(2)}</span>
-          </li>
-        ))}
-      </ul>
+      <ModalBody>
+        {(requestClose) => (
+          <>
+            <EnterToClose active={!voiding} requestClose={requestClose} />
+            <div className="list-header">
+              <div className="section-header">Items</div>
+              <span className="order-summary">
+                {itemCount} item{itemCount !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <ul className="order-confirm-items">
+              {order.items.map((item, i) => (
+                <li key={i}>
+                  <span className="num">{item.qty}×</span>
+                  <span className="name">
+                    {item.name}
+                    {item.note && <span className="muted-text"> — {item.note}</span>}
+                  </span>
+                  <span className="num">${(item.price * item.qty).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
 
-      {order.note && (
-        <p className="order-confirm-note">
-          <span className="muted-text">Order note: </span>
-          {order.note}
-        </p>
-      )}
+            {order.note && (
+              <p className="order-confirm-note">
+                <span className="muted-text">Order note: </span>
+                {order.note}
+              </p>
+            )}
 
-      <div className="totals-block">
-        <div className="totals-row">
-          <span>Subtotal</span>
-          <span className="num">${order.subtotal.toFixed(2)}</span>
-        </div>
-        {order.discount && (
-          <div className="totals-row">
-            <span>
-              Discount
-              {order.discount.reason && <span className="muted-text"> ({order.discount.reason})</span>}
-            </span>
-            <span className="num">−${discountAmount.toFixed(2)}</span>
-          </div>
+            <div className="totals-block">
+              <div className="totals-row">
+                <span>Subtotal</span>
+                <span className="num">${order.subtotal.toFixed(2)}</span>
+              </div>
+              {order.discount && (
+                <div className="totals-row">
+                  <span>
+                    Discount
+                    {order.discount.reason && <span className="muted-text"> ({order.discount.reason})</span>}
+                  </span>
+                  <span className="num">−${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="totals-row">
+                <span>Payment</span>
+                <span>{order.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
+              </div>
+              {order.orderType && (
+                <div className="totals-row">
+                  <span>Order type</span>
+                  <span style={{ textTransform: 'capitalize' }}>{order.orderType}</span>
+                </div>
+              )}
+              {order.amountTendered !== undefined && (
+                <div className="totals-row">
+                  <span>Tendered</span>
+                  <span className="num">${order.amountTendered.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="total-row">
+                <span>Total</span>
+                <span className="num">${order.total.toFixed(2)}</span>
+              </div>
+              {order.amountTendered !== undefined && (
+                <div className="totals-row change-row">
+                  <span>Change</span>
+                  <span className="num">${(order.amountTendered - order.total).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            {order.voidReason && (
+              <p className="order-confirm-note">
+                <span className="muted-text">Void reason: </span>
+                {order.voidReason}
+              </p>
+            )}
+
+            {!confirmed && !!order.statusHistory?.length && (
+              <>
+                <div className="section-header">Status history</div>
+                <ul className="status-history">
+                  {order.statusHistory.map((change, i) => (
+                    <li key={i}>
+                      <span className={`status-pill ${change.status}`}>{change.status}</span>
+                      <span className="muted-text">{new Date(change.at).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <div className="checkout-row">
+              {!confirmed && VOIDABLE_STATUSES.includes(order.status) && (
+                <button type="button" className="ghost danger" onClick={() => setVoiding(true)}>
+                  Void order
+                </button>
+              )}
+              <button type="button" className="primary" style={{ flex: 1 }} onClick={requestClose}>
+                {closeLabel}
+              </button>
+            </div>
+
+            {voiding && (
+              <VoidOrderModal
+                order={order}
+                onClose={() => setVoiding(false)}
+                onVoided={() => {
+                  setVoiding(false);
+                  onVoided?.();
+                  requestClose();
+                }}
+              />
+            )}
+          </>
         )}
-        <div className="totals-row">
-          <span>Payment</span>
-          <span>{order.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
-        </div>
-        {order.orderType && (
-          <div className="totals-row">
-            <span>Order type</span>
-            <span style={{ textTransform: 'capitalize' }}>{order.orderType}</span>
-          </div>
-        )}
-        {order.amountTendered !== undefined && (
-          <div className="totals-row">
-            <span>Tendered</span>
-            <span className="num">${order.amountTendered.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="total-row">
-          <span>Total</span>
-          <span className="num">${order.total.toFixed(2)}</span>
-        </div>
-        {order.amountTendered !== undefined && (
-          <div className="totals-row change-row">
-            <span>Change</span>
-            <span className="num">${(order.amountTendered - order.total).toFixed(2)}</span>
-          </div>
-        )}
-      </div>
-
-      {order.voidReason && (
-        <p className="order-confirm-note">
-          <span className="muted-text">Void reason: </span>
-          {order.voidReason}
-        </p>
-      )}
-
-      {!confirmed && !!order.statusHistory?.length && (
-        <>
-          <div className="section-header">Status history</div>
-          <ul className="status-history">
-            {order.statusHistory.map((change, i) => (
-              <li key={i}>
-                <span className={`status-pill ${change.status}`}>{change.status}</span>
-                <span className="muted-text">{new Date(change.at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <div className="checkout-row">
-        {!confirmed && VOIDABLE_STATUSES.includes(order.status) && (
-          <button type="button" className="ghost danger" onClick={() => setVoiding(true)}>
-            Void order
-          </button>
-        )}
-        <button type="button" className="primary" style={{ flex: 1 }} onClick={onClose}>
-          {closeLabel}
-        </button>
-      </div>
-
-      {voiding && (
-        <VoidOrderModal
-          order={order}
-          onClose={() => setVoiding(false)}
-          onVoided={() => {
-            setVoiding(false);
-            onVoided?.();
-            onClose();
-          }}
-        />
-      )}
+      </ModalBody>
     </Modal>
   );
+}
+
+/** Enter closes, except when focus is on a button — it already handles its
+ * own Enter via a native click (would otherwise double-fire on Void/Close).
+ * Escape is handled by Modal itself. Disabled while VoidOrderModal is open
+ * on top, so Enter there doesn't also close this modal underneath it. */
+function EnterToClose({ active, requestClose }: { active: boolean; requestClose: () => void }) {
+  useEffect(() => {
+    if (!active) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') requestClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [active, requestClose]);
+  return null;
 }

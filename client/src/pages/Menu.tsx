@@ -14,6 +14,7 @@ import { getLabels } from '../api/labels';
 import { getRecentSales } from '../api/reports';
 import { comboContentsSummary, comboItemsTotal } from '../comboFormat';
 import { ActionMenu, ActionMenuInlineForm } from '../components/ActionMenu';
+import { usePageSizeOptions } from '../hooks/usePageSizeOptions';
 import { BusyOverlay } from '../components/BusyOverlay';
 import { Combobox } from '../components/Combobox';
 import { ComboPicker } from '../components/ComboPicker';
@@ -86,6 +87,7 @@ function errorMessage(err: unknown, fallback: string): string {
 
 export function Menu() {
   const toast = useToast();
+  const pageSizeOptions = usePageSizeOptions();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categoryNames, setCategoryNames] = useState<string[]>([]);
   const [tagNames, setTagNames] = useState<string[]>([]);
@@ -96,6 +98,11 @@ export function Menu() {
   const [bulkValue, setBulkValue] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkDeleteTarget, setBulkDeleteTarget] = useState<MenuItem[] | null>(null);
+  /** A non-destructive bulk action (available/86'd/pin/unpin/category/tag)
+   * awaiting a yes/no before it touches every selected item. Delete has
+   * its own ConfirmModal via bulkDeleteTarget; this covers the rest, since
+   * a mis-click across a whole selection is a bigger deal than on one row. */
+  const [bulkConfirm, setBulkConfirm] = useState<{ title: string; message: string; run: () => void } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -534,10 +541,38 @@ export function Menu() {
                   label="Actions"
                   disabled={bulkBusy}
                   items={[
-                    { key: 'available', label: 'Mark available', onSelect: () => applyBulk({ available: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked available`) },
-                    { key: '86', label: "Mark 86'd", tone: 'caution', onSelect: () => applyBulk({ available: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked 86'd`) },
-                    { key: 'pin', label: 'Pin to top', startGroup: true, onSelect: () => applyBulk({ pinned: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} pinned`) },
-                    { key: 'unpin', label: 'Unpin', onSelect: () => applyBulk({ pinned: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} unpinned`) },
+                    {
+                      key: 'available', label: 'Mark available',
+                      onSelect: () => setBulkConfirm({
+                        title: `Mark ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} available?`,
+                        message: 'They reappear on the Cashier grid if not already available.',
+                        run: () => applyBulk({ available: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked available`),
+                      }),
+                    },
+                    {
+                      key: '86', label: "Mark 86'd", tone: 'caution',
+                      onSelect: () => setBulkConfirm({
+                        title: `Mark ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} 86'd?`,
+                        message: "They're hidden from the Cashier grid until marked available again.",
+                        run: () => applyBulk({ available: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} marked 86'd`),
+                      }),
+                    },
+                    {
+                      key: 'pin', label: 'Pin to top', startGroup: true,
+                      onSelect: () => setBulkConfirm({
+                        title: `Pin ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} to the top?`,
+                        message: 'They sort ahead of everything else on the Cashier grid.',
+                        run: () => applyBulk({ pinned: true }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} pinned`),
+                      }),
+                    },
+                    {
+                      key: 'unpin', label: 'Unpin',
+                      onSelect: () => setBulkConfirm({
+                        title: `Unpin ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}?`,
+                        message: 'They go back to sorting normally on the Cashier grid.',
+                        run: () => applyBulk({ pinned: false }, `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} unpinned`),
+                      }),
+                    },
                     { key: 'category', label: 'Set category…', startGroup: true, onSelect: () => setBulkAction('category') },
                     { key: 'tag', label: 'Add tag…', onSelect: () => setBulkAction('tag') },
                     { key: 'delete', label: 'Delete…', tone: 'danger', startGroup: true, onSelect: () => setBulkDeleteTarget(items.filter((i) => selectedIds.has(i._id))) },
@@ -638,7 +673,7 @@ export function Menu() {
           isRowSelected={(i) => i._id === selectedId}
           emptyMessage="No items match."
           pageSize={10}
-          pageSizeOptions={[10, 25, 50]}
+          pageSizeOptions={pageSizeOptions}
         />
       </div>
 
@@ -991,6 +1026,20 @@ export function Menu() {
               <ConfirmWarning>This can't be undone.</ConfirmWarning>
             </>
           }
+        />
+      )}
+
+      {bulkConfirm && (
+        <ConfirmModal
+          title={bulkConfirm.title}
+          confirmLabel="Confirm"
+          cancelLabel="Cancel"
+          onClose={() => setBulkConfirm(null)}
+          onConfirm={() => {
+            setBulkConfirm(null);
+            bulkConfirm.run();
+          }}
+          message={<p>{bulkConfirm.message}</p>}
         />
       )}
     </div>

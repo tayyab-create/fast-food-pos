@@ -36,6 +36,12 @@ export interface Label {
   itemCount: number;
 }
 
+/** App-wide config, a single row. */
+export interface AppSettings {
+  /** Choices offered in every paginated table's "Rows:" picker. */
+  pageSizeOptions: number[];
+}
+
 export interface OrderItem {
   name: string;
   price: number;

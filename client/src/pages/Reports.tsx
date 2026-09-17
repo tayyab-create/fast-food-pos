@@ -3,6 +3,7 @@ import { getSummaryReport } from '../api/reports';
 import { getOrders } from '../api/orders';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { Chart } from '../components/Chart';
+import { usePageSizeOptions } from '../hooks/usePageSizeOptions';
 import { DateRangePicker, formatDisplay, formatRange, isoDateToLocalDate, toISODate, type DateRange } from '../components/DatePicker';
 import { MultiSelectDropdown } from '../components/Dropdown';
 import { LedgerTable } from '../components/LedgerTable';
@@ -91,6 +92,7 @@ const BUCKET_COLUMNS = (first: string) => [
 ];
 
 export function Reports() {
+  const pageSizeOptions = usePageSizeOptions();
   const [tab, setTab] = useState<Tab>('overview');
   /** Range the summary tabs cover; both ends empty = all time. */
   const [range, setRange] = useState<DateRange>(() => ({ from: TODAY, to: TODAY }));
@@ -329,8 +331,8 @@ export function Reports() {
             rows={report.items}
             rowKey={(i) => i.name}
             emptyMessage={`No sales ${label}.`}
-            pageSize={25}
-            pageSizeOptions={[25, 50, 100]}
+            pageSize={10}
+            pageSizeOptions={pageSizeOptions}
           />
         </>
       )}
@@ -384,7 +386,7 @@ export function Reports() {
                 onRowClick={(v) => setSelectedOrder(orders.find((o) => o._id === v._id) ?? null)}
                 emptyMessage={`No voided orders ${label}.`}
                 pageSize={10}
-                pageSizeOptions={[10, 25, 50]}
+                pageSizeOptions={pageSizeOptions}
               />
             </div>
           </div>
@@ -470,7 +472,7 @@ export function Reports() {
             onRowClick={setSelectedOrder}
             emptyMessage={filtersActive || search ? 'No orders match.' : 'No orders yet.'}
             pageSize={10}
-            pageSizeOptions={[10, 25, 50]}
+            pageSizeOptions={pageSizeOptions}
           />
         </>
       )}

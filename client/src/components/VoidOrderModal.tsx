@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { updateOrderStatus } from '../api/orders';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import type { Order } from '../types';
 
 // Mirrors the server's slice(0, 200) in ordersController.updateStatus.
@@ -40,34 +40,40 @@ export function VoidOrderModal({ order, onClose, onVoided }: VoidOrderModalProps
 
   return (
     <Modal title={`Void order #${order.orderNumber}`} className="void-modal" onClose={onClose} closeDisabled={submitting}>
-      <p className="hint">
-        This can't be undone. The order stays in history, marked voided, and drops out of today's revenue.
-      </p>
-      <label className="field-label">
-        <span className="field-label-row">
-          Reason
-          <span className={`char-count${reason.length >= REASON_MAX ? ' at-limit' : ''}`} aria-live="polite">
-            {reason.length}/{REASON_MAX}
-          </span>
-        </span>
-        <textarea
-          className={`void-reason${error && !reason.trim() ? ' invalid' : ''}`}
-          rows={3}
-          maxLength={REASON_MAX}
-          autoFocus
-          placeholder="e.g. customer changed their mind, keyed the wrong item"
-          value={reason}
-          disabled={submitting}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </label>
-      {error && <p className="field-error" role="alert">{error}</p>}
-      <div className="checkout-row">
-        <button type="button" className="ghost" disabled={submitting} onClick={onClose}>Keep order</button>
-        <button type="button" className="primary danger" style={{ flex: 1 }} disabled={submitting} onClick={confirm}>
-          {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Voiding…' : 'Void order'}
-        </button>
-      </div>
+      <ModalBody>
+        {(requestClose) => (
+          <>
+            <p className="hint">
+              This can't be undone. The order stays in history, marked voided, and drops out of today's revenue.
+            </p>
+            <label className="field-label">
+              <span className="field-label-row">
+                Reason
+                <span className={`char-count${reason.length >= REASON_MAX ? ' at-limit' : ''}`} aria-live="polite">
+                  {reason.length}/{REASON_MAX}
+                </span>
+              </span>
+              <textarea
+                className={`void-reason${error && !reason.trim() ? ' invalid' : ''}`}
+                rows={3}
+                maxLength={REASON_MAX}
+                autoFocus
+                placeholder="e.g. customer changed their mind, keyed the wrong item"
+                value={reason}
+                disabled={submitting}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+            {error && <p className="field-error" role="alert">{error}</p>}
+            <div className="checkout-row">
+              <button type="button" className="ghost" disabled={submitting} onClick={requestClose}>Keep order</button>
+              <button type="button" className="primary danger" style={{ flex: 1 }} disabled={submitting} onClick={confirm}>
+                {submitting && <span className="spinner" aria-hidden="true" />}{submitting ? 'Voiding…' : 'Void order'}
+              </button>
+            </div>
+          </>
+        )}
+      </ModalBody>
     </Modal>
   );
 }

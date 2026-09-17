@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import { createLabel, deleteLabel, getLabels, renameLabel } from '../api/labels';
+import { getSettings, updateSettings } from '../api/settings';
 import { ConfirmModal, ConfirmWarning } from '../components/ConfirmModal';
 import { LedgerTable } from '../components/LedgerTable';
 import { useToast } from '../components/Toast';
 import type { Label, LabelKind } from '../types';
+
+const MIN_PAGE_SIZE = 1;
+const MAX_PAGE_SIZE = 500;
+const MAX_PAGE_SIZE_OPTIONS = 8;
 
 const COPY: Record<LabelKind, { title: string; singular: string; hint: string; onDelete: string; max: number }> = {
   category: {
@@ -185,11 +190,124 @@ function LabelSection({ kind }: { kind: LabelKind }) {
   );
 }
 
+/** Editable list of "Rows:" choices offered on every paginated table. A
+ * plain number list, not a full CRUD table like LabelSection — chips with
+ * one add field, matching how filters already show a removable selection. */
+function PaginationSection() {
+  const toast = useToast();
+  const [options, setOptions] = useState<number[] | null>(null);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    try {
+      setOptions((await getSettings()).pageSizeOptions);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not load pagination settings.', { kind: 'error' });
+      setOptions([]);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function save(next: number[]) {
+    if (saving) return;
+    setSaving(true);
+    const sorted = [...next].sort((a, b) => a - b);
+    try {
+      await updateSettings({ pageSizeOptions: sorted });
+      setOptions(sorted);
+      toast('Pagination options saved');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save.', { kind: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function add() {
+    const n = Number(draft);
+    if (!options || saving || !draft.trim()) return;
+    if (!Number.isInteger(n) || n < MIN_PAGE_SIZE || n > MAX_PAGE_SIZE) {
+      toast(`Enter a whole number between ${MIN_PAGE_SIZE} and ${MAX_PAGE_SIZE}`, { kind: 'error' });
+      return;
+    }
+    if (options.includes(n)) {
+      toast(`${n} is already in the list`, { kind: 'error' });
+      return;
+    }
+    if (options.length >= MAX_PAGE_SIZE_OPTIONS) {
+      toast(`At most ${MAX_PAGE_SIZE_OPTIONS} page sizes`, { kind: 'error' });
+      return;
+    }
+    setDraft('');
+    save([...options, n]);
+  }
+
+  function remove(n: number) {
+    if (!options || saving) return;
+    if (options.length <= 1) {
+      toast('At least one page size is required', { kind: 'error' });
+      return;
+    }
+    save(options.filter((o) => o !== n));
+  }
+
+  return (
+    <section className="settings-section">
+      <div className="list-header">
+        <div className="section-header">Pagination</div>
+        <form
+          className="settings-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
+          <input
+            type="number"
+            min={MIN_PAGE_SIZE}
+            max={MAX_PAGE_SIZE}
+            placeholder="New page size"
+            aria-label="New page size"
+            value={draft}
+            disabled={saving || options === null}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <button type="submit" className="primary" disabled={!draft.trim() || saving || options === null}>
+            {saving && <span className="spinner" aria-hidden="true" />}
+            Add
+          </button>
+        </form>
+      </div>
+      <p className="hint">
+        Choices offered in every table's "Rows:" picker (Menu, Kitchen, Reports). Every table still defaults to 10 rows regardless of what's offered here.
+      </p>
+      {options === null ? (
+        <p className="hint">Loading…</p>
+      ) : options.length === 0 ? (
+        <p className="empty">No page sizes yet — add one above.</p>
+      ) : (
+        <div className="active-filters" role="list" aria-label="Page size options">
+          {options.map((n) => (
+            <span className="filter-chip" role="listitem" key={n}>
+              {n}
+              <button type="button" aria-label={`Remove ${n}`} disabled={saving} onClick={() => remove(n)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function Settings() {
   return (
     <div className="settings-page">
       <LabelSection kind="category" />
       <LabelSection kind="tag" />
+      <PaginationSection />
     </div>
   );
 }
